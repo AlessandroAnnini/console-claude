@@ -69,10 +69,14 @@ export function serialize(
     };
   }
   if (typeof NodeList !== "undefined" && value instanceof NodeList) {
-    return [...value].slice(0, MAX_KEYS).map((v) => serialize(v, depth + 1, seen));
+    return Array.from(value)
+      .slice(0, MAX_KEYS)
+      .map((v) => serialize(v, depth + 1, seen));
   }
   if (typeof HTMLCollection !== "undefined" && value instanceof HTMLCollection) {
-    return [...value].slice(0, MAX_KEYS).map((v) => serialize(v, depth + 1, seen));
+    return Array.from(value)
+      .slice(0, MAX_KEYS)
+      .map((v) => serialize(v, depth + 1, seen));
   }
   if (seen.has(obj)) return "[Circular]";
   seen.add(obj);

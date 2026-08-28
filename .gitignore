@@ -1,6 +1,8 @@
 # Product repo ignore (studio layout: kit + gf-program live outside this repo)
 node_modules/
 dist/
+test-results/
+playwright-report/
 *.tsbuildinfo
 .venv/
 venv/
