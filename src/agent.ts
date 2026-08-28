@@ -14,6 +14,7 @@ export type AgentDeps = {
   confirm?: (code: string) => Promise<boolean>;
   signal?: AbortSignal;
   maxSteps?: number;
+  history?: unknown[];
 };
 
 export type AgentOutcome = {
@@ -31,7 +32,7 @@ export async function runAgent(
   deps: AgentDeps,
 ): Promise<AgentOutcome> {
   const maxSteps = deps.maxSteps ?? 20;
-  const messages: unknown[] = [{ role: "user", content: goal }];
+  const messages: unknown[] = [...(deps.history ?? []), { role: "user", content: goal }];
 
   for (let step = 1; step <= maxSteps; step++) {
     if (aborted(deps.signal)) return { outcome: "stopped", text: "Stopped." };

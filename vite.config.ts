@@ -12,8 +12,6 @@ export default defineConfig({
         options: resolve(__dirname, "options.html"),
         devtools: resolve(__dirname, "devtools.html"),
         background: resolve(__dirname, "src/background.ts"),
-        content: resolve(__dirname, "src/content-isolated.ts"),
-        stub: resolve(__dirname, "src/page-stub.ts"),
       },
       output: {
         entryFileNames: "[name].js",

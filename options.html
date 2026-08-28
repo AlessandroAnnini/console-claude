@@ -3,6 +3,47 @@
   <head>
     <meta charset="utf-8" />
     <title>Console Claude</title>
+    <style>
+      html {
+        color: CanvasText;
+        background: Canvas;
+        font: 14px system-ui, sans-serif;
+      }
+      body {
+        max-width: 36rem;
+        margin: 1.5rem;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+      label:has(#confirm) {
+        flex-direction: row;
+        align-items: center;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="number"] {
+        font: inherit;
+        padding: 0.35rem 0.5rem;
+      }
+      button {
+        width: max-content;
+        font: inherit;
+        padding: 0.4rem 0.9rem;
+        background: ButtonFace;
+        color: ButtonText;
+      }
+      #status {
+        min-height: 1.3em;
+      }
+    </style>
   </head>
   <body>
     <h1>Console Claude</h1>

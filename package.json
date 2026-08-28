@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.stub.config.ts && vite build --config vite.isolated.config.ts",
     "test": "vitest",
     "test:e2e": "npm run build && playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/chrome": "^0.1.4",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
