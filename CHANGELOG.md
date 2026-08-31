@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-31
+
+### Changed
+
+- Toolbar and store icons are a celestial diagram mark (crescent, star, orbit, rays) instead of the placeholder disc.
+
 ## [0.2.0] - 2026-08-31
 
 ### Added

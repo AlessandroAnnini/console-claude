@@ -1,7 +1,7 @@
 {
   "name": "console-claude",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Agentic REPL in the DevTools console. Claude inspects the live page with JavaScript.",
   "license": "AGPL-3.0",
   "author": "Alessandro Annini",
