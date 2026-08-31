@@ -12,6 +12,7 @@ import {
   summarizeHar,
   summarizeResources,
 } from "./observe";
+import { extensionAlive } from "./extension-alive";
 import { isAbortError } from "./errors";
 import { executeJs, runEval } from "./eval-wrapper";
 import { isPageStubInstalled } from "./page-stub-guard";
@@ -323,5 +324,17 @@ describe("helpers", () => {
   it("detects an already-installed page stub", () => {
     expect(isPageStubInstalled({})).toBe(false);
     expect(isPageStubInstalled({ __ccEval: () => undefined })).toBe(true);
+  });
+
+  it("treats a missing or throwing runtime as dead", () => {
+    expect(extensionAlive({ runtime: { id: "abc" } })).toBe(true);
+    expect(extensionAlive({})).toBe(false);
+    const dead = {} as { runtime?: { id?: string } };
+    Object.defineProperty(dead, "runtime", {
+      get() {
+        throw new Error("Extension context invalidated.");
+      },
+    });
+    expect(extensionAlive(dead)).toBe(false);
   });
 });

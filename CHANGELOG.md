@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-31
+
+### Fixed
+
+- Isolated content script no longer throws "Extension context invalidated" after you reload the extension on a tab that still has the old script.
+
 ## [0.3.0] - 2026-08-31
 
 ### Added
