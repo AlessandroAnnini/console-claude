@@ -2,7 +2,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runAgent } from "./agent";
-import { parseGoal } from "./console-api";
+import { DEFAULT_INSPECT_GOAL, parseAsk, parseGoal } from "./console-api";
+import {
+  attachBody,
+  inferResourceType,
+  MAX_NETWORK,
+  normalizeHar,
+  parseNetworkFilter,
+  summarizeHar,
+  summarizeResources,
+} from "./observe";
 import { isAbortError } from "./errors";
 import { executeJs, runEval } from "./eval-wrapper";
 import { isPageStubInstalled } from "./page-stub-guard";
@@ -49,8 +58,8 @@ describe("AC3-stop", () => {
     let completes = 0;
     const run = runAgent("go", {
       signal: ctrl.signal,
-      evalJs: async (code) => {
-        evals.push(code);
+      runTool: async (_name, input) => {
+        evals.push(String(input.code ?? ""));
         return { ok: true, result: 1 };
       },
       complete: async () => {
@@ -124,6 +133,92 @@ describe("AC7-goal-parse", () => {
     expect(parseGoal()).toBeNull();
     expect(parseGoal("   ")).toBeNull();
   });
+
+  it("parseAsk accepts an Element and a goal", () => {
+    const el = { tagName: "VIDEO", id: "p", className: "x", innerText: "hi", outerHTML: "<video>" };
+    expect(parseAsk([el])).toEqual({ goal: DEFAULT_INSPECT_GOAL, selected: [el] });
+    expect(parseAsk(["why overflow", el])).toEqual({ goal: "why overflow", selected: [el] });
+    expect(parseAsk([el, "why overflow"])).toEqual({ goal: "why overflow", selected: [el] });
+    expect(parseAsk([])).toBeNull();
+    expect(parseAsk(["  "])).toBeNull();
+  });
+});
+
+describe("observe summaries", () => {
+  const har = {
+    entries: [
+      {
+        request: { method: "GET", url: "https://a.test/ok.js" },
+        response: { status: 200, content: { size: 10, mimeType: "text/javascript" } },
+        time: 12,
+      },
+      {
+        request: { method: "POST", url: "https://a.test/fail" },
+        response: {
+          status: 500,
+          content: { size: 4, mimeType: "text/plain", text: "boom" },
+        },
+        time: 40,
+      },
+    ],
+  };
+
+  it("filters, caps, and attaches one body", () => {
+    expect(normalizeHar(har).log?.entries).toHaveLength(2);
+    expect(summarizeHar(har, { status: "error" })).toMatchObject([
+      { method: "POST", url: "https://a.test/fail", status: 500 },
+    ]);
+    const withBody = summarizeHar(har, { url: "/fail", includeBody: true });
+    expect(withBody).toHaveLength(1);
+    expect(withBody[0].body).toBe("boom");
+    const long = {
+      log: {
+        entries: Array.from({ length: 80 }, (_, i) => ({
+          request: { method: "GET", url: `https://a.test/${i}` },
+          response: { status: 200 },
+        })),
+      },
+    };
+    expect(summarizeHar(long)).toHaveLength(MAX_NETWORK);
+  });
+
+  it("classifies and filters resources", () => {
+    expect(inferResourceType("https://a.test/app.js")).toBe("script");
+    expect(inferResourceType("https://a.test/app.css")).toBe("stylesheet");
+    expect(inferResourceType("https://a.test/app.js", "Script")).toBe("script");
+    expect(inferResourceType("https://a.test/app.js", "image")).toBe("script");
+    expect(inferResourceType("https://a.test/", "document")).toBe("document");
+    const rows = summarizeResources(
+      [
+        { url: "https://a.test/app.js", type: "script" },
+        { url: "https://a.test/app.css", type: "stylesheet" },
+      ],
+      { type: "script" },
+    );
+    expect(rows).toEqual([{ url: "https://a.test/app.js", type: "script" }]);
+  });
+
+  it("coerces network filters and attachBody", () => {
+    expect(parseNetworkFilter({ status: "500", url: "/api" })).toEqual({
+      url: "/api",
+      status: 500,
+      includeBody: false,
+    });
+    expect(parseNetworkFilter({ status: "error", includeBody: true })).toMatchObject({
+      status: "error",
+      includeBody: true,
+    });
+    expect(summarizeHar(har, parseNetworkFilter({ status: "500" }))).toMatchObject([
+      { status: 500, url: "https://a.test/fail" },
+    ]);
+    const row = { method: "GET", url: "https://a.test/x", status: 200, mime: null, timeMs: 1, size: 1 };
+    expect(attachBody({ ...row, reason: "not captured" }, "hello")).toEqual({
+      ...row,
+      body: "hello",
+    });
+    expect(attachBody(row, "hello", "base64").reason).toBe("encoded");
+    expect(attachBody(row, null).reason).toBe("not captured");
+  });
 });
 
 describe("agent confirm deny", () => {
@@ -131,7 +226,7 @@ describe("agent confirm deny", () => {
     let ran = false;
     const result = await runAgent("go", {
       confirm: async () => false,
-      evalJs: async () => {
+      runTool: async () => {
         ran = true;
         return { ok: true, result: 1 };
       },
@@ -149,9 +244,9 @@ describe("agent confirm deny", () => {
     let ran = false;
     let step = 0;
     const result = await runAgent("go", {
-      evalJs: async () => {
-        ran = true;
-        return { ok: true, result: 1 };
+      runTool: async (name) => {
+        if (name === "eval_js") ran = true;
+        return { ok: false, error: `Unknown tool: ${name}` };
       },
       complete: async () => {
         step += 1;
@@ -165,6 +260,57 @@ describe("agent confirm deny", () => {
     });
     expect(ran).toBe(false);
     expect(result.text).toBe("done");
+  });
+
+  it("runs network without confirm", async () => {
+    let confirmed = false;
+    let ran = "";
+    let step = 0;
+    const result = await runAgent("go", {
+      confirm: async () => {
+        confirmed = true;
+        return false;
+      },
+      runTool: async (name) => {
+        ran = name;
+        return { ok: true, result: [] };
+      },
+      complete: async () => {
+        step += 1;
+        if (step === 1) {
+          return {
+            content: [{ type: "tool_use", name: "network", id: "1", input: { url: "/api" } }],
+          };
+        }
+        return { content: [{ type: "text", text: "seen" }] };
+      },
+    });
+    expect(confirmed).toBe(false);
+    expect(ran).toBe("network");
+    expect(result.text).toBe("seen");
+  });
+
+  it("runs resources without confirm", async () => {
+    let confirmed = false;
+    let step = 0;
+    const result = await runAgent("go", {
+      confirm: async () => {
+        confirmed = true;
+        return false;
+      },
+      runTool: async () => ({ ok: true, result: [] }),
+      complete: async () => {
+        step += 1;
+        if (step === 1) {
+          return {
+            content: [{ type: "tool_use", name: "resources", id: "1", input: { type: "script" } }],
+          };
+        }
+        return { content: [{ type: "text", text: "listed" }] };
+      },
+    });
+    expect(confirmed).toBe(false);
+    expect(result.text).toBe("listed");
   });
 });
 

@@ -1,6 +1,6 @@
 # Architecture
 
-Console Claude is a Manifest V3 Chrome (and Edge) extension. The human types a goal in the page console. Claude inspects the live JavaScript runtime by calling `eval_js`. It is not a chatbot overlay.
+Console Claude is a Manifest V3 Chrome (and Edge) extension. The human types a goal in the page console. Claude inspects the live JavaScript runtime with `eval_js`, and can read Chrome-recorded traffic (`network`) and loaded URLs (`resources`). It is not a chatbot overlay.
 
 ## Runtime
 
@@ -29,6 +29,7 @@ flowchart LR
   DT -->|"Messages API"| Anthropic["api.anthropic.com"]
   DT -->|"window.confirm\nextension origin"| DT
   DT -->|"scripting.executeScript MAIN"| Eval
+  DT -->|"devtools.network / getResources"| Observe["HAR and resources"]
   Eval --> Stub
   Opt -->|"chrome.storage.local"| SW
 ```
@@ -49,12 +50,16 @@ sequenceDiagram
   S->>I: postMessage
   I->>W: sendMessage
   W->>D: Port
-  D->>A: messages + eval_js tool
+  D->>A: messages + tools
   loop until text-only or stop
-    A-->>D: tool_use eval_js
-    D->>D: confirm if enabled
-    D->>P: __ccEval(code)
-    P-->>D: serialized JSON
+    A-->>D: tool_use
+    alt eval_js
+      D->>D: confirm if enabled
+      D->>P: __ccEval(code)
+      P-->>D: serialized JSON
+    else network or resources
+      D->>D: chrome.devtools snapshot
+    end
     D->>A: tool_result
   end
   D-->>S: reply text
@@ -95,8 +100,9 @@ Four Vite passes. Always `npm run build`.
 | `src/page-stub.ts` | MAIN world: `claude`, `__ccEval`, `__ccLog` |
 | `src/content-isolated.ts` | Isolated bridge + confirm sync |
 | `src/background.ts` | Ports, config, toolbar → Options |
-| `src/devtools.ts` | Agent loop, Anthropic, confirm, eval |
+| `src/devtools.ts` | Agent loop, Anthropic, confirm, eval, network, resources |
 | `src/agent.ts` | Step loop (no Chrome APIs) |
+| `src/observe.ts` | Pure HAR / resource summaries |
 | `src/anthropic.ts` | `POST /v1/messages` |
 | `src/eval-wrapper.ts` | Expression, then statement body |
 | `src/serialize.ts` | Bounded JSON |
@@ -110,4 +116,5 @@ Four Vite passes. Always `npm run build`.
 - Do not steal `$`, `$$`, `$0`, or `copy`
 - Confirm defaults on
 - Serializer caps: depth 4, 100 keys, text 3000, html 10000
-- `eval_js` is the only model tool unless you add routing in `agent.ts` and `devtools.ts` together
+- Model tools: `eval_js` (page JS, confirm), `network` and `resources` (read-only `chrome.devtools.*`). Routing lives in `agent.ts` and `devtools.ts` together. No `chrome.debugger`.
+- Each tool logs as one collapsed `Claude → name` group (input + result). Final text is `Claude:`.

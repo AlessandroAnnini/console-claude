@@ -58,6 +58,7 @@ test("saves a key and injects the console API", async () => {
         hasStop: typeof claude?.stop === "function",
         hasReset: typeof claude?.reset === "function",
         hasHelp: typeof claude?.help === "function",
+        hasInspect: typeof claude?.inspect === "function",
       };
     });
     expect(api).toEqual({
@@ -65,6 +66,7 @@ test("saves a key and injects the console API", async () => {
       hasStop: true,
       hasReset: true,
       hasHelp: true,
+      hasInspect: true,
     });
   } finally {
     await context.close();

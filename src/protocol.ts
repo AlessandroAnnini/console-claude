@@ -22,6 +22,7 @@ export type PageRequest = {
   type: PageRequestType;
   goal?: string;
   confirm?: boolean;
+  selected?: unknown;
 };
 
 export type ConfigSnapshot = {

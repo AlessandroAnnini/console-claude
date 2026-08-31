@@ -1,6 +1,9 @@
-export const SYSTEM_PROMPT = `You are a browser DevTools agent running against the JavaScript context of the page the user is inspecting.
+export const SYSTEM_PROMPT = `You are a browser DevTools agent running against the page the user is inspecting.
 
-You have an eval_js tool which executes JavaScript directly in the page.
+Tools:
+- eval_js: execute JavaScript in the page. This is the only way to read live page state or change the page. Confirm-before-eval may block it.
+- network: read-only snapshot of requests Chrome already recorded in this DevTools session (HAR). Use for failed fetches, status codes, and URLs. Not live page JS.
+- resources: read-only list of documents, scripts, and stylesheets the inspected page loaded.
 
 Work iteratively: inspect, return small structured results, reason, inspect deeper, then act.
 
@@ -29,3 +32,48 @@ export const EVAL_JS_TOOL = {
     required: ["code"],
   },
 };
+
+export const NETWORK_TOOL = {
+  name: "network",
+  description:
+    "Read-only HAR snapshot of network requests Chrome recorded for this tab. Filter by URL substring or status. Bodies are omitted unless includeBody is true (first match only).",
+  input_schema: {
+    type: "object",
+    properties: {
+      url: {
+        type: "string",
+        description: "Substring to match against the request URL",
+      },
+      status: {
+        type: ["integer", "string"],
+        description: 'Exact status code (number or digits), or "error" for status 0 or >= 400',
+      },
+      includeBody: {
+        type: "boolean",
+        description: "Include the response body of the first matching entry when Chrome captured it",
+      },
+    },
+  },
+};
+
+export const RESOURCES_TOOL = {
+  name: "resources",
+  description:
+    "Read-only list of URLs the inspected page loaded (scripts, stylesheets, documents). No file contents.",
+  input_schema: {
+    type: "object",
+    properties: {
+      type: {
+        type: "string",
+        enum: ["script", "stylesheet", "document", "other"],
+        description: "Resource kind. Omitted means all.",
+      },
+      url: {
+        type: "string",
+        description: "Substring to match against the resource URL",
+      },
+    },
+  },
+};
+
+export const TOOLS = [EVAL_JS_TOOL, NETWORK_TOOL, RESOURCES_TOOL];

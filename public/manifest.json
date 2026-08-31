@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Console Claude",
-  "version": "0.2.1",
-  "description": "Agentic REPL in the DevTools console. Claude inspects the live page with eval_js.",
+  "version": "0.3.0",
+  "description": "Unofficial DevTools REPL. Not affiliated with Anthropic. Type a goal; Claude inspects the live page.",
   "homepage_url": "https://github.com/AlessandroAnnini/console-claude",
   "author": "Alessandro Annini",
   "options_ui": {

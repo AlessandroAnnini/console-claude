@@ -1,5 +1,5 @@
 /** Messages API from the DevTools page. The key stays in extension storage. */
-import { EVAL_JS_TOOL, SYSTEM_PROMPT } from "./prompt";
+import { SYSTEM_PROMPT, TOOLS } from "./prompt";
 
 export type AnthropicMessage = { role: string; content: unknown };
 
@@ -25,7 +25,7 @@ export async function completeMessages(opts: {
       model: opts.model,
       max_tokens: opts.maxTokens ?? 4096,
       system: SYSTEM_PROMPT,
-      tools: [EVAL_JS_TOOL],
+      tools: TOOLS,
       messages: opts.messages,
     }),
   });

@@ -2,6 +2,9 @@
 
 export const HELP_TEXT = `claude(goal)          start a run (await optional)
 claude\`goal\`          same, tagged template
+claude($0)            inspect the selected Elements node
+claude.inspect($0)    same
+claude('why', $0)     goal plus the selected node
 claude.stop()         abort the current run
 claude.reset()        clear conversation
 claude.help()         this text
@@ -13,7 +16,23 @@ DevTools must be open on this tab. After you reload the extension, close
 DevTools and open it again — the console staying open is not enough.
 `;
 
+export const DEFAULT_INSPECT_GOAL = "Inspect the selected node.";
+
 export type TemplateLike = { raw: readonly string[] };
+
+export type AskParse = {
+  goal: string;
+  selected: unknown[];
+};
+
+export function isElementLike(value: unknown): value is object {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "tagName" in value &&
+    ("outerHTML" in value || "innerText" in value)
+  );
+}
 
 export function parseGoal(
   first?: unknown,
@@ -39,6 +58,32 @@ export function parseGoal(
     return text.length ? text : null;
   }
   return null;
+}
+
+export function parseAsk(args: unknown[]): AskParse | null {
+  if (!args.length) return null;
+  const selected: unknown[] = [];
+  const texts: string[] = [];
+
+  if (isTemplate(args[0])) {
+    const goal = parseGoal(args[0], ...args.slice(1));
+    for (const arg of args.slice(1)) {
+      if (isElementLike(arg)) selected.push(arg);
+    }
+    if (goal) return { goal, selected };
+    if (selected.length) return { goal: DEFAULT_INSPECT_GOAL, selected };
+    return null;
+  }
+
+  for (const arg of args) {
+    if (isElementLike(arg)) selected.push(arg);
+    else if (typeof arg === "string" && arg.trim()) texts.push(arg.trim());
+  }
+  if (!texts.length && !selected.length) return null;
+  return {
+    goal: texts.join(" ") || DEFAULT_INSPECT_GOAL,
+    selected,
+  };
 }
 
 function isTemplate(value: unknown): value is TemplateLike {

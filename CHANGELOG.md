@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-31
+
+### Added
+
+- Claude can read a HAR snapshot (`network`) and loaded URLs (`resources`) through DevTools APIs. Confirm still applies only to `eval_js`.
+- `claude($0)` and `claude.inspect($0)` send the selected Elements node with the goal.
+- Stub re-injects when the inspected tab navigates.
+
+### Changed
+
+- Each tool call logs as one collapsed `Claude → eval_js` / `network` / `resources` group (input and result inside). The separate `Tool result:` line is gone.
+
 ## [0.2.1] - 2026-08-31
 
 ### Changed

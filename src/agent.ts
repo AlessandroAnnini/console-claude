@@ -1,4 +1,4 @@
-/** Model loop: complete → optional eval_js → tool_result, until text-only or abort. */
+/** Model loop: complete → tool_result, until text-only or abort. */
 export type ToolResult = { ok: boolean; result?: unknown; error?: string };
 
 export type ContentBlock = {
@@ -6,12 +6,12 @@ export type ContentBlock = {
   text?: string;
   name?: string;
   id?: string;
-  input?: { code?: string };
+  input?: Record<string, unknown>;
 };
 
 export type AgentDeps = {
   complete: (messages: unknown[]) => Promise<{ content: ContentBlock[] }>;
-  evalJs: (code: string) => Promise<ToolResult>;
+  runTool: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
   confirm?: (code: string) => Promise<boolean>;
   signal?: AbortSignal;
   maxSteps?: number;
@@ -56,27 +56,23 @@ export async function runAgent(
     const toolResults: unknown[] = [];
     for (const call of toolCalls) {
       if (aborted(deps.signal)) return { outcome: "stopped", text: "Stopped." };
-      if (call.name !== "eval_js") {
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: call.id,
-          content: JSON.stringify({ ok: false, error: `Unknown tool: ${call.name}` }),
-        });
-        continue;
+      const name = call.name ?? "";
+      const input = call.input ?? {};
+      if (name === "eval_js" && deps.confirm) {
+        const code = typeof input.code === "string" ? input.code : "";
+        if (!(await deps.confirm(code))) {
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: call.id,
+            content: JSON.stringify({
+              ok: false,
+              error: "Execution denied by user.",
+            }),
+          });
+          continue;
+        }
       }
-      const code = call.input?.code ?? "";
-      if (deps.confirm && !(await deps.confirm(code))) {
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: call.id,
-          content: JSON.stringify({
-            ok: false,
-            error: "Execution denied by user.",
-          }),
-        });
-        continue;
-      }
-      const result = await deps.evalJs(code);
+      const result = await deps.runTool(name, input);
       toolResults.push({
         type: "tool_result",
         tool_use_id: call.id,

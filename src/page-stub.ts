@@ -1,4 +1,4 @@
-import { HELP_TEXT, parseGoal } from "./console-api";
+import { HELP_TEXT, parseAsk } from "./console-api";
 import { runEval } from "./eval-wrapper";
 import { STYLE } from "./log-style";
 import { isPageStubInstalled } from "./page-stub-guard";
@@ -13,6 +13,7 @@ import { serialize } from "./serialize";
 
 type ClaudeFn = {
   (...args: unknown[]): Promise<string | void>;
+  inspect: (...args: unknown[]) => Promise<string | void>;
   stop: () => void;
   reset: () => void;
   help: () => void;
@@ -84,10 +85,12 @@ function install(): void {
     return { ok: true, result: serialize(raw.result) };
   }
 
-  function __ccLog(kind: keyof typeof STYLE | "stopped", payload?: unknown) {
-    if (kind === "eval") {
-      console.groupCollapsed("%cClaude → eval_js", STYLE.eval);
-      console.log(payload);
+  function __ccLog(kind: keyof typeof STYLE | "stopped" | "tool", payload?: unknown) {
+    if (kind === "tool") {
+      const entry = payload as { name?: string; input?: unknown; result?: unknown };
+      console.groupCollapsed(`%cClaude → ${entry.name ?? "tool"}`, STYLE.eval);
+      if (entry.input !== undefined) console.log(entry.input);
+      console.log("%c→", STYLE.result, entry.result);
       console.groupEnd();
       return;
     }
@@ -95,8 +98,7 @@ function install(): void {
       console.log("%cStopped.", STYLE.error);
       return;
     }
-    const label =
-      kind === "result" ? "Tool result:" : kind === "ready" ? "Console Claude ready" : "Claude:";
+    const label = kind === "ready" ? "Console Claude ready" : "Claude:";
     const style = kind === "ready" ? STYLE.ready : STYLE[kind] ?? STYLE.claude;
     console.log(`%c${label}`, style, payload ?? "");
   }
@@ -106,8 +108,8 @@ function install(): void {
   }
 
   async function claudeImpl(...args: unknown[]): Promise<string | void> {
-    const goal = parseGoal(args[0], ...args.slice(1));
-    if (goal == null) {
+    const ask = parseAsk(args);
+    if (ask == null) {
       help();
       return;
     }
@@ -118,7 +120,10 @@ function install(): void {
     }
     busy = true;
     try {
-      const reply = await send("ask", { goal });
+      const extra: Partial<PageRequest> = { goal: ask.goal };
+      if (ask.selected.length === 1) extra.selected = serialize(ask.selected[0]);
+      else if (ask.selected.length > 1) extra.selected = ask.selected.map((node) => serialize(node));
+      const reply = await send("ask", extra);
       if (reply.error) {
         console.log("%cClaude:", STYLE.error, reply.error);
         throw new Error(reply.error);
@@ -136,6 +141,7 @@ function install(): void {
     void run.catch(() => undefined);
     return run;
   }) as ClaudeFn;
+  claude.inspect = (...args: unknown[]) => claude(...args);
   claude.stop = () => {
     void send("stop");
   };
@@ -181,7 +187,7 @@ function install(): void {
 
   __ccLog("ready");
   console.log(
-    'Use: claude("Inspect this page") · claude.stop() · claude.reset() · claude.help()',
+    'Use: claude("Inspect this page") · claude($0) · claude.stop() · claude.help()',
   );
 }
 
