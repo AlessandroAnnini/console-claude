@@ -1,3 +1,4 @@
+/** chrome.storage.local adapter. Settings never enter the inspected page. */
 import { normalizeSettings, type Settings } from "./settings";
 
 export const SETTINGS_KEY = "consoleClaude.settings";

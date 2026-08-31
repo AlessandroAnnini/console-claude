@@ -3,9 +3,17 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runAgent } from "./agent";
 import { parseGoal } from "./console-api";
+import { isAbortError } from "./errors";
 import { executeJs, runEval } from "./eval-wrapper";
+import { isPageStubInstalled } from "./page-stub-guard";
 import { serialize } from "./serialize";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./settings";
+import {
+  DEFAULT_MODEL,
+  DEFAULT_SETTINGS,
+  MODELS,
+  normalizeSettings,
+  resolveModel,
+} from "./settings";
 
 describe("AC1-key-isolation", () => {
   it("MAIN-world stub source has no API key handling", () => {
@@ -27,6 +35,10 @@ describe("AC2-serialize", () => {
     expect(serialize(el)).toMatchObject({ type: "Element", tag: "VIDEO" });
     expect(serialize(circular)).toEqual({ self: "[Circular]" });
     expect(serialize(long)).toHaveLength(100);
+    expect(serialize(new Date("2026-08-28T00:00:00.000Z"))).toEqual({
+      type: "Date",
+      iso: "2026-08-28T00:00:00.000Z",
+    });
   });
 });
 
@@ -92,6 +104,15 @@ describe("AC6-storage-defaults", () => {
       apiKey: "sk-test",
       maxSteps: 20,
     });
+    expect(normalizeSettings({ maxSteps: 0 }).maxSteps).toBe(20);
+    expect(normalizeSettings({ maxSteps: 999 }).maxSteps).toBe(100);
+    expect(DEFAULT_MODEL).toBe("claude-sonnet-5");
+    expect(MODELS.some((item) => item.id === DEFAULT_MODEL)).toBe(true);
+    expect(resolveModel("claude-sonnet-4-20250514")).toBe(DEFAULT_MODEL);
+    expect(normalizeSettings({ model: "claude-sonnet-4-20250514" }).model).toBe(
+      DEFAULT_MODEL,
+    );
+    expect(normalizeSettings({ model: "claude-opus-5" }).model).toBe("claude-opus-5");
   });
 });
 
@@ -101,5 +122,60 @@ describe("AC7-goal-parse", () => {
     expect(parseGoal({ raw: ["a", "c"] }, "b")).toBe("abc");
     expect(parseGoal("")).toBeNull();
     expect(parseGoal()).toBeNull();
+    expect(parseGoal("   ")).toBeNull();
+  });
+});
+
+describe("agent confirm deny", () => {
+  it("does not eval when the user denies", async () => {
+    let ran = false;
+    const result = await runAgent("go", {
+      confirm: async () => false,
+      evalJs: async () => {
+        ran = true;
+        return { ok: true, result: 1 };
+      },
+      complete: async () => ({
+        content: [{ type: "tool_use", name: "eval_js", id: "1", input: { code: "1" } }],
+      }),
+      maxSteps: 1,
+    });
+    expect(ran).toBe(false);
+    expect(result.outcome).toBe("ok");
+    expect(result.text).toMatch(/exceeded/);
+  });
+
+  it("rejects unknown tools without eval", async () => {
+    let ran = false;
+    let step = 0;
+    const result = await runAgent("go", {
+      evalJs: async () => {
+        ran = true;
+        return { ok: true, result: 1 };
+      },
+      complete: async () => {
+        step += 1;
+        if (step === 1) {
+          return {
+            content: [{ type: "tool_use", name: "not_a_tool", id: "1", input: { code: "1" } }],
+          };
+        }
+        return { content: [{ type: "text", text: "done" }] };
+      },
+    });
+    expect(ran).toBe(false);
+    expect(result.text).toBe("done");
+  });
+});
+
+describe("helpers", () => {
+  it("detects AbortError only", () => {
+    expect(isAbortError(new DOMException("Aborted", "AbortError"))).toBe(true);
+    expect(isAbortError(new Error("nope"))).toBe(false);
+  });
+
+  it("detects an already-installed page stub", () => {
+    expect(isPageStubInstalled({})).toBe(false);
+    expect(isPageStubInstalled({ __ccEval: () => undefined })).toBe(true);
   });
 });

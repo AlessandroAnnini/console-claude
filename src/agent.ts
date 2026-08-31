@@ -1,3 +1,4 @@
+/** Model loop: complete → optional eval_js → tool_result, until text-only or abort. */
 export type ToolResult = { ok: boolean; result?: unknown; error?: string };
 
 export type ContentBlock = {
@@ -18,7 +19,7 @@ export type AgentDeps = {
 };
 
 export type AgentOutcome = {
-  outcome: "ok" | "stopped" | "denied";
+  outcome: "ok" | "stopped";
   text: string;
   messages?: unknown[];
 };

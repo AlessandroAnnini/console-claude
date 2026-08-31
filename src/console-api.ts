@@ -8,6 +8,9 @@ claude.help()         this text
 claude.last           last answer
 claude.busy           true while a run is in flight
 claude.config.confirm ask before each eval (also on the options page)
+
+DevTools must be open on this tab. After you reload the extension, close
+DevTools and open it again — the console staying open is not enough.
 `;
 
 export type TemplateLike = { raw: readonly string[] };

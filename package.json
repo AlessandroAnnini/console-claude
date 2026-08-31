@@ -1,12 +1,28 @@
 {
   "name": "console-claude",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Agentic REPL in the DevTools console. Claude inspects the live page with JavaScript.",
+  "license": "AGPL-3.0",
+  "author": "Alessandro Annini",
+  "homepage": "https://alessandroannini.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlessandroAnnini/console-claude.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AlessandroAnnini/console-claude/issues"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build && vite build --config vite.stub.config.ts && vite build --config vite.isolated.config.ts",
-    "test": "vitest",
+    "dev": "node scripts/watch.mjs",
+    "build": "vite build && vite build --config vite.stub.config.ts && vite build --config vite.isolated.config.ts && vite build --config vite.background.config.ts",
+    "pack": "npm run build && node scripts/pack.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
     "lint": "tsc --noEmit && eslint ."
   },

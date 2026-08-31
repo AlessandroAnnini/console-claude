@@ -1,3 +1,4 @@
+/** Expression first, then statement body. Used by MAIN-world `__ccEval`. */
 export type EvalResult = { ok: boolean; result?: unknown; error?: string };
 
 type EvalFn = (source: string) => unknown;

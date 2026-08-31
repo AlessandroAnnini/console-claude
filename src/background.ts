@@ -1,43 +1,72 @@
+import {
+  DEVTOOLS_REQUIRED,
+  type DevtoolsHello,
+  type DevtoolsPing,
+  type DevtoolsReply,
+  type PageRequest,
+} from "./protocol";
 import { chromeArea, loadSettings, saveSettings } from "./storage";
 
-type DevtoolsHello = { kind: "hello"; tabId: number };
-type DevtoolsReply = { kind: "reply"; id: string } & Record<string, unknown>;
-type PageMsg = {
-  id: string;
-  type: string;
-  goal?: string;
-  confirm?: boolean;
+type Pending = {
+  tabId: number;
+  resolve: (reply: DevtoolsReply) => void;
 };
 
 const ports = new Map<number, chrome.runtime.Port>();
-const pending = new Map<string, (reply: DevtoolsReply) => void>();
+const pending = new Map<string, Pending>();
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "devtools") return;
   let tabId = -1;
-  port.onMessage.addListener((msg: DevtoolsHello | DevtoolsReply) => {
+  port.onMessage.addListener((msg: DevtoolsHello | DevtoolsPing | DevtoolsReply) => {
+    if (msg && "kind" in msg && msg.kind === "ping") return;
     if (msg && "kind" in msg && msg.kind === "hello") {
       tabId = msg.tabId;
       ports.set(tabId, port);
       return;
     }
-    if (msg && "kind" in msg && msg.kind === "reply" && pending.has(msg.id)) {
-      pending.get(msg.id)!(msg);
-      pending.delete(msg.id);
+    if (msg && "kind" in msg && msg.kind === "reply") {
+      const wait = pending.get(msg.id);
+      if (wait) {
+        pending.delete(msg.id);
+        wait.resolve(msg);
+      }
     }
   });
   port.onDisconnect.addListener(() => {
     if (tabId >= 0) ports.delete(tabId);
+    for (const [id, wait] of pending) {
+      if (wait.tabId === tabId) {
+        pending.delete(id);
+        wait.resolve({
+          kind: "reply",
+          id,
+          error: DEVTOOLS_REQUIRED,
+        });
+      }
+    }
   });
 });
 
-chrome.runtime.onMessage.addListener((msg: PageMsg, sender, sendResponse) => {
+chrome.action.onClicked.addListener(() => {
+  void chrome.runtime.openOptionsPage();
+});
+
+chrome.runtime.onMessage.addListener((msg: PageRequest, sender, sendResponse) => {
   const tabId = sender.tab?.id;
-  void handlePage(msg, tabId).then(sendResponse);
+  void handlePage(msg, tabId)
+    .then(sendResponse)
+    .catch((error: unknown) => {
+      sendResponse({
+        id: msg.id,
+        type: "reply",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
   return true;
 });
 
-async function handlePage(msg: PageMsg, tabId?: number) {
+async function handlePage(msg: PageRequest, tabId?: number) {
   if (msg.type === "config-get") {
     const settings = await loadSettings(chromeArea());
     return {
@@ -62,12 +91,12 @@ async function handlePage(msg: PageMsg, tabId?: number) {
   const port = ports.get(tabId);
   if (!port) {
     if (msg.type === "ask") {
-      return { id: msg.id, type: "reply", error: "Open DevTools to run Claude." };
+      return { id: msg.id, type: "reply", error: DEVTOOLS_REQUIRED };
     }
     return { id: msg.id, type: "reply" };
   }
   return await new Promise<DevtoolsReply>((resolve) => {
-    pending.set(msg.id, resolve);
+    pending.set(msg.id, { tabId, resolve });
     port.postMessage({ ...msg, tabId });
   });
 }

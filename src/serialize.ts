@@ -39,6 +39,9 @@ export function serialize(
   if (value instanceof Error) {
     return { type: value.name, message: value.message, stack: value.stack };
   }
+  if (value instanceof Date) {
+    return { type: "Date", iso: Number.isNaN(value.getTime()) ? "Invalid Date" : value.toISOString() };
+  }
   if (name === "Window") {
     const w = value as { location?: { href?: string }; document?: { title?: string } };
     return {

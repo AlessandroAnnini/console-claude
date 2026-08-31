@@ -1,21 +1,24 @@
-# Product repo ignore (studio layout: kit + gf-program live outside this repo)
+# Dependencies and local tooling
 node_modules/
+.venv/
+venv/
+
+# Build and pack output
 dist/
+*.zip
+
+# Tests
 test-results/
 playwright-report/
 *.tsbuildinfo
-.venv/
-venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-dist/
-build/
-*.egg-info/
-.DS_Store
+coverage/
+.nyc_output/
+
+# Environment and OS
 .env
 .env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+*.log

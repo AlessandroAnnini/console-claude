@@ -1,3 +1,4 @@
+/** Messages API from the DevTools page. The key stays in extension storage. */
 import { EVAL_JS_TOOL, SYSTEM_PROMPT } from "./prompt";
 
 export type AnthropicMessage = { role: string; content: unknown };

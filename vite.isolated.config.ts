@@ -1,3 +1,4 @@
+/** Isolated bridge → dist/content.js. */
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 

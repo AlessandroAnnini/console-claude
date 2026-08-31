@@ -32,10 +32,24 @@ test("saves a key and injects the console API", async () => {
     await options.locator("#confirm").uncheck();
     await options.getByRole("button", { name: "Save" }).click();
     await expect(options.locator("#status")).toHaveText("Key saved");
+    await expect(options.locator("#keyEntry")).toBeHidden();
+    await expect(options.locator("#removeKey")).toBeVisible();
+    await expect(options.locator("#model")).toHaveValue("claude-sonnet-5");
     await options.reload();
     await expect(options.locator("#status")).toHaveText("Key saved");
-    await expect(options.locator("#apiKey")).toHaveValue("");
+    await expect(options.locator("#keyEntry")).toBeHidden();
     await expect(options.locator("#confirm")).not.toBeChecked();
+    await options.getByRole("button", { name: "Remove key" }).click();
+    await expect(options.locator("#status")).toHaveText("No key saved");
+    await expect(options.locator("#apiKey")).toBeVisible();
+    await expect(options.getByRole("link", { name: "Source" })).toHaveAttribute(
+      "href",
+      "https://github.com/AlessandroAnnini/console-claude",
+    );
+    await expect(options.getByRole("link", { name: "alessandroannini.com" })).toHaveAttribute(
+      "href",
+      "https://alessandroannini.com",
+    );
 
     const api = await fixture.evaluate(() => {
       const claude = (window as unknown as { claude?: Record<string, unknown> }).claude;

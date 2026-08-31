@@ -1,3 +1,4 @@
+/** Extensions need channel: "chromium". The default headless shell cannot load them. */
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
