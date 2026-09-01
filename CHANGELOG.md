@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Tagging `v*` publishes `console-claude.zip` on the GitHub Release.
+
 ## [0.3.1] - 2026-08-31
 
 ### Fixed

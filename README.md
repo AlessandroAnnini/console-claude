@@ -26,6 +26,8 @@ Architecture: [docs/architecture.md](docs/architecture.md). Privacy: [docs/priva
 
 ## Load unpacked
 
+Latest built zip: [console-claude.zip](https://github.com/AlessandroAnnini/console-claude/releases/latest/download/console-claude.zip) (also on [Releases](https://github.com/AlessandroAnnini/console-claude/releases)). Unzip and Load unpacked, or upload that zip to the Chrome Web Store.
+
 1. `npm install`
 2. `npm run build`
 3. Chrome → `chrome://extensions` → Developer mode → Load unpacked → select **`dist`**
