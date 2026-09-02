@@ -42,6 +42,10 @@ test("saves a key and injects the console API", async () => {
     await options.getByRole("button", { name: "Remove key" }).click();
     await expect(options.locator("#status")).toHaveText("No key saved");
     await expect(options.locator("#apiKey")).toBeVisible();
+    await expect(options.getByRole("link", { name: "Chrome Web Store" })).toHaveAttribute(
+      "href",
+      "https://chromewebstore.google.com/detail/console-claude/hleepflblbonhhlhnnfkppmodoplgmei",
+    );
     await expect(options.getByRole("link", { name: "Source" })).toHaveAttribute(
       "href",
       "https://github.com/AlessandroAnnini/console-claude",

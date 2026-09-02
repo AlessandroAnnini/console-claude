@@ -4,9 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-02
+
 ### Added
 
 - Tagging `v*` publishes `console-claude.zip` on the GitHub Release.
+- README and Options link to the [Chrome Web Store listing](https://chromewebstore.google.com/detail/console-claude/hleepflblbonhhlhnnfkppmodoplgmei).
 
 ## [0.3.1] - 2026-08-31
 

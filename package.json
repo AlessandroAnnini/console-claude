@@ -1,7 +1,7 @@
 {
   "name": "console-claude",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Unofficial DevTools REPL. Not affiliated with Anthropic. Type a goal; Claude inspects the live page.",
   "license": "AGPL-3.0",
   "author": "Alessandro Annini",

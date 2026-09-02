@@ -1,5 +1,9 @@
 # Console Claude
 
+[![Available in the Chrome Web Store](https://developer.chrome.com/static/docs/webstore/branding/image/tbyBjqi7Zu733AAKA5n4.png)](https://chromewebstore.google.com/detail/console-claude/hleepflblbonhhlhnnfkppmodoplgmei)
+
+Install from the [Chrome Web Store](https://chromewebstore.google.com/detail/console-claude/hleepflblbonhhlhnnfkppmodoplgmei).
+
 Chrome extension that turns the DevTools console into an agentic REPL. You type a goal. Claude inspects the live page with JavaScript and can read DevTools network and resource lists. It is not a chatbot overlay.
 
 **This is an independent project. It is not an official Anthropic product and is not affiliated with, endorsed by, or sponsored by Anthropic PBC.** You bring your own Anthropic API key and pay Anthropic for usage.
@@ -26,7 +30,7 @@ Architecture: [docs/architecture.md](docs/architecture.md). Privacy: [docs/priva
 
 ## Load unpacked
 
-Latest built zip: [console-claude.zip](https://github.com/AlessandroAnnini/console-claude/releases/latest/download/console-claude.zip) (also on [Releases](https://github.com/AlessandroAnnini/console-claude/releases)). Unzip and Load unpacked, or upload that zip to the Chrome Web Store.
+Prefer the [Chrome Web Store](https://chromewebstore.google.com/detail/console-claude/hleepflblbonhhlhnnfkppmodoplgmei) listing. For local builds, the latest zip is [console-claude.zip](https://github.com/AlessandroAnnini/console-claude/releases/latest/download/console-claude.zip) (also on [Releases](https://github.com/AlessandroAnnini/console-claude/releases)). Unzip and Load unpacked.
 
 1. `npm install`
 2. `npm run build`
@@ -42,7 +46,7 @@ Default model is `claude-sonnet-5`. Options lists other current Claude API model
 
 You pay Anthropic for API usage. This repo does not include a key.
 
-Source: [github.com/AlessandroAnnini/console-claude](https://github.com/AlessandroAnnini/console-claude). Author: [alessandroannini.com](https://alessandroannini.com).
+Store: [chromewebstore.google.com/detail/console-claude](https://chromewebstore.google.com/detail/console-claude/hleepflblbonhhlhnnfkppmodoplgmei). Source: [github.com/AlessandroAnnini/console-claude](https://github.com/AlessandroAnnini/console-claude). Author: [alessandroannini.com](https://alessandroannini.com).
 
 ## Scripts
 
