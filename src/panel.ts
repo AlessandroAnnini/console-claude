@@ -203,7 +203,7 @@ function assistantBody(text: string): HTMLElement {
   body.className = "md";
   try {
     const { fragment, blocks } = renderMarkdownFragment(text);
-    for (const node of [...fragment.querySelectorAll("p")]) {
+    for (const node of Array.from(fragment.querySelectorAll("p"))) {
       const match = /^%%CC_MERMAID_(\d+)%%$/.exec(node.textContent?.trim() ?? "");
       if (!match) continue;
       const slot = document.createElement("div");
@@ -211,7 +211,7 @@ function assistantBody(text: string): HTMLElement {
       slot.dataset.index = match[1];
       node.replaceWith(slot);
     }
-    for (const table of [...fragment.querySelectorAll("table")]) {
+    for (const table of Array.from(fragment.querySelectorAll("table"))) {
       const hold = document.createElement("div");
       hold.className = "table-wrap";
       table.replaceWith(hold);

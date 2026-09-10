@@ -13,6 +13,7 @@ All notable changes to this project are documented here.
 ### Added
 
 - DevTools **Claude** panel: origin-scoped sessions (create, rename, delete), durable transcript, and a Send/Stop composer. `claude('…')` / `claude.reset()` attach to the active session. Confirm-before-eval appears in the panel when it is open.
+- Panel answers render GFM Markdown (tables) and mermaid fences (sandboxed). Session delete is a `×` mark. Hairlines separate each ask/answer pair.
 
 ## [0.3.2] - 2026-09-02
 
