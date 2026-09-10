@@ -112,12 +112,20 @@
         white-space: nowrap;
       }
       #sessions .del {
+        flex-shrink: 0;
+        opacity: 0;
         border: 0;
         background: none;
         color: var(--muted);
         cursor: pointer;
         font: inherit;
-        padding: 0 0.2rem;
+        line-height: 1;
+        padding: 0 0.15rem;
+      }
+      #sessions li:hover .del,
+      #sessions li:focus-within .del,
+      #sessions li.active .del {
+        opacity: 1;
       }
       main {
         flex: 1;
@@ -145,6 +153,11 @@
         color: var(--muted);
         margin: 1.5rem 0 0;
       }
+      .exchange + .exchange {
+        margin-top: 0.35rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--hair);
+      }
       .turn {
         margin: 0 0 0.9rem;
       }
@@ -155,9 +168,53 @@
         color: var(--muted);
         margin: 0 0 0.2rem;
       }
-      .turn p {
+      .turn.user p {
         margin: 0;
         white-space: pre-wrap;
+      }
+      .md {
+        overflow-wrap: anywhere;
+      }
+      .md p,
+      .md ul,
+      .md ol {
+        margin: 0 0 0.55rem;
+      }
+      .md pre {
+        margin: 0 0 0.55rem;
+        padding: 0.45rem 0.55rem;
+        border: 1px solid var(--hair);
+        background: var(--paper);
+        overflow-x: auto;
+        font: 0.78rem/1.4 ui-monospace, "IBM Plex Mono", monospace;
+      }
+      .md table {
+        border-collapse: collapse;
+        margin: 0 0 0.55rem;
+        width: max-content;
+        max-width: 100%;
+      }
+      .md .table-wrap {
+        overflow-x: auto;
+        margin: 0 0 0.55rem;
+      }
+      .md th,
+      .md td {
+        border: 1px solid var(--hair);
+        padding: 0.25rem 0.5rem;
+        text-align: left;
+      }
+      .md th {
+        background: var(--surface);
+        font-weight: 500;
+      }
+      .md .mermaid {
+        margin: 0 0 0.55rem;
+        overflow-x: auto;
+      }
+      .md .mermaid svg {
+        max-width: 100%;
+        height: auto;
       }
       .turn .status {
         font-size: 0.65rem;
@@ -266,7 +323,7 @@
       </aside>
       <main>
         <p id="banner" hidden></p>
-        <div id="turns"></div>
+        <div id="turns" role="log" aria-label="Transcript"></div>
         <form id="composer">
           <textarea id="goal" rows="3" placeholder="Ask about this page"></textarea>
           <button type="submit" id="send">Send</button>
