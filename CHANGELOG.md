@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- DevTools **Claude** panel: origin-scoped sessions (create, rename, delete), durable transcript, and a Send/Stop composer. `claude('…')` / `claude.reset()` attach to the active session. Confirm-before-eval appears in the panel when it is open.
+
 ## [0.3.2] - 2026-09-02
 
 ### Added

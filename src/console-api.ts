@@ -14,6 +14,7 @@ claude.config.confirm ask before each eval (also on the options page)
 
 DevTools must be open on this tab. After you reload the extension, close
 DevTools and open it again — the console staying open is not enough.
+The Claude panel shows the same active session as these commands.
 `;
 
 export const DEFAULT_INSPECT_GOAL = "Inspect the selected node.";

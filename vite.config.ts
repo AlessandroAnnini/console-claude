@@ -25,6 +25,7 @@ export default defineConfig({
       input: {
         options: resolve(__dirname, "options.html"),
         devtools: resolve(__dirname, "devtools.html"),
+        panel: resolve(__dirname, "panel.html"),
       },
       output: {
         entryFileNames: "[name].js",

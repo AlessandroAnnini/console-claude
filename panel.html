@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Claude</title>
+    <style>
+      :root {
+        --bg: #f7f5ee;
+        --ink: #171717;
+        --muted: #55534d;
+        --hair: #aaa69d;
+        --paper: #faf9f5;
+        --surface: #ece9e0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        color: var(--ink);
+        background: var(--bg);
+        font: 14px/1.5 "IBM Plex Sans", Geist, Inter, "Segoe UI", sans-serif;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 1rem;
+        padding: 0.7rem 1rem;
+        border-bottom: 1px solid var(--hair);
+      }
+      .mark {
+        color: var(--muted);
+        letter-spacing: 0.35em;
+        font-size: 0.65rem;
+        margin: 0;
+      }
+      h1 {
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        font-weight: 500;
+        font-size: 1.35rem;
+        letter-spacing: -0.02em;
+        margin: 0;
+      }
+      #origin {
+        color: var(--muted);
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      a {
+        color: var(--ink);
+        text-decoration: none;
+        border-bottom: 1px solid var(--hair);
+      }
+      a:hover {
+        border-bottom-color: var(--ink);
+      }
+      .layout {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+      aside {
+        width: 13.5rem;
+        border-right: 1px solid var(--hair);
+        padding: 0.65rem 0.6rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      #sessions {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        overflow: auto;
+      }
+      #sessions li {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.35rem 0.4rem;
+        border: 1px solid transparent;
+        cursor: pointer;
+      }
+      #sessions li.active {
+        border-color: var(--hair);
+        background: var(--surface);
+      }
+      #sessions li input {
+        flex: 1;
+        min-width: 0;
+        font: inherit;
+        color: var(--ink);
+        background: var(--paper);
+        border: 1px solid var(--hair);
+        padding: 0.1rem 0.3rem;
+      }
+      #sessions .title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #sessions .del {
+        border: 0;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+        font: inherit;
+        padding: 0 0.2rem;
+      }
+      main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      #banner {
+        margin: 0;
+        padding: 0.45rem 1rem;
+        border-bottom: 1px solid var(--hair);
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      #banner[hidden],
+      #new[hidden] {
+        display: none;
+      }
+      #turns {
+        flex: 1;
+        overflow: auto;
+        padding: 0.85rem 1rem 1.2rem;
+      }
+      .empty {
+        color: var(--muted);
+        margin: 1.5rem 0 0;
+      }
+      .turn {
+        margin: 0 0 0.9rem;
+      }
+      .turn .who {
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 0.2rem;
+      }
+      .turn p {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+      .turn .status {
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0.25rem 0 0;
+      }
+      .tool {
+        margin: 0.4rem 0 0;
+        padding: 0.4rem 0.5rem;
+        border: 1px solid var(--hair);
+        background: var(--paper);
+      }
+      .tool .name {
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .tool pre {
+        margin: 0.25rem 0 0;
+        white-space: pre-wrap;
+        font: 0.78rem/1.4 ui-monospace, "IBM Plex Mono", monospace;
+      }
+      #composer {
+        display: flex;
+        gap: 0.55rem;
+        align-items: flex-end;
+        padding: 0.65rem 1rem 0.85rem;
+        border-top: 1px solid var(--hair);
+      }
+      textarea {
+        flex: 1;
+        min-height: 3.2rem;
+        resize: vertical;
+        font: inherit;
+        color: var(--ink);
+        background: var(--paper);
+        border: 1px solid var(--hair);
+        padding: 0.4rem 0.5rem;
+      }
+      textarea:focus,
+      button:focus,
+      input:focus {
+        outline: 1px solid var(--ink);
+        outline-offset: 1px;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.95rem;
+        background: var(--ink);
+        color: var(--paper);
+        border: 1px solid var(--ink);
+        cursor: pointer;
+      }
+      button.secondary,
+      #send.stop {
+        background: transparent;
+        color: var(--ink);
+        border-color: var(--hair);
+      }
+      dialog {
+        border: 1px solid var(--hair);
+        background: var(--paper);
+        color: var(--ink);
+        padding: 1rem 1.1rem;
+        max-width: 36rem;
+      }
+      dialog::backdrop {
+        background: rgb(23 23 23 / 18%);
+      }
+      dialog p {
+        margin: 0 0 0.5rem;
+        font-size: 0.68rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      dialog pre {
+        margin: 0 0 0.85rem;
+        max-height: 12rem;
+        overflow: auto;
+        white-space: pre-wrap;
+        font: 0.8rem/1.4 ui-monospace, "IBM Plex Mono", monospace;
+      }
+      dialog menu {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="mark">○ ─ · ─ ✦</p>
+      <h1>Claude</h1>
+      <p id="origin"></p>
+      <a href="#" id="options">Options</a>
+    </header>
+    <div class="layout">
+      <aside>
+        <button type="button" class="secondary" id="new" hidden>+ New</button>
+        <ul id="sessions"></ul>
+      </aside>
+      <main>
+        <p id="banner" hidden></p>
+        <div id="turns"></div>
+        <form id="composer">
+          <textarea id="goal" rows="3" placeholder="Ask about this page"></textarea>
+          <button type="submit" id="send">Send</button>
+        </form>
+      </main>
+    </div>
+    <dialog id="confirmDlg">
+      <p>Claude wants to execute</p>
+      <pre id="confirmCode"></pre>
+      <menu>
+        <button type="button" id="allow">Allow</button>
+        <button type="button" class="secondary" id="deny">Deny</button>
+      </menu>
+    </dialog>
+    <script type="module" src="/src/panel.ts"></script>
+  </body>
+</html>
