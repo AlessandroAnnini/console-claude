@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [0.0.2] - 2026-09-10
+
+### Added
+
+- Feature `panel-transcript` shipped to develop.
+
 ## [0.0.1] - 2026-09-10
 
 ### Added
