@@ -38,7 +38,7 @@ Prefer the [Chrome Web Store](https://chromewebstore.google.com/detail/console-c
 4. Open Options (toolbar icon). Paste an Anthropic API key. Save.
 5. Open DevTools on an `http` or `https` page. Open the **Claude** tab to type a goal (Send / Stop), or type `claude('…')` in the console. Optional: pick a node in Elements and run `claude($0)`. Console commands attach to the same active session the panel shows.
 
-DevTools must stay open. After you reload the extension, close DevTools and open it again. The visible console is not enough; a hidden DevTools page owns the agent loop. Sessions are kept per origin in the Claude panel.
+DevTools must stay open. After you reload the extension, close DevTools and open it again. The visible console is not enough; a hidden DevTools page owns the agent loop. Sessions are kept per origin in the Claude panel. Claude answers in the panel render Markdown (including tables and mermaid diagrams).
 
 Confirm-before-eval defaults on. Uncheck **Ask before each JavaScript run**, or set `claude.config.confirm = false`. After a key is saved, Options shows **Remove key** instead of the password field.
 

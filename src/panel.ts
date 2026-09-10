@@ -1,4 +1,7 @@
+import { renderMarkdownFragment, type MermaidBlock } from "./markdown";
+import { SESSION_DELETE_MARK } from "./panel-copy";
 import { PANEL_PORT, type ConfirmRequest } from "./protocol";
+import type { MermaidAsk, MermaidReply } from "./sandbox";
 import {
   activeSession,
   deleteSession,
@@ -12,6 +15,7 @@ import {
   SESSIONS_KEY,
   type OriginBucket,
   type Session,
+  type Turn,
 } from "./sessions";
 import { chromeArea } from "./storage";
 
@@ -104,7 +108,9 @@ function render() {
       const del = document.createElement("button");
       del.type = "button";
       del.className = "del";
-      del.textContent = "Delete";
+      del.textContent = SESSION_DELETE_MARK;
+      del.setAttribute("aria-label", "Delete session");
+      del.title = "Delete";
       del.addEventListener("click", (event) => {
         event.stopPropagation();
         if (running || !bucket) return;
@@ -125,29 +131,62 @@ function render() {
     : "";
   const turns = active?.turns ?? [];
   if (!turns.length) {
-    turnsEl.innerHTML = `<p class="empty">Ask Claude about this page. Console commands attach to the same session.</p>`;
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "Ask Claude about this page. Console commands attach to the same session.";
+    turnsEl.replaceChildren(empty);
   } else {
-    turnsEl.replaceChildren(...turns.map(turnNode));
+    turnsEl.replaceChildren(...groupExchanges(turns).map(exchangeNode));
     turnsEl.scrollTop = turnsEl.scrollHeight;
   }
   sendBtn.textContent = running ? "Stop" : "Send";
   sendBtn.classList.toggle("stop", running);
 }
 
-function turnNode(turn: { role: string; text: string; tools?: { name: string; summary: string }[]; status?: string }) {
+function groupExchanges(turns: Turn[]): Turn[][] {
+  const groups: Turn[][] = [];
+  let current: Turn[] = [];
+  for (const turn of turns) {
+    if (turn.role === "user" && current.length) {
+      groups.push(current);
+      current = [];
+    }
+    current.push(turn);
+  }
+  if (current.length) groups.push(current);
+  return groups;
+}
+
+function exchangeNode(turns: Turn[]): HTMLElement {
+  const wrap = document.createElement("section");
+  wrap.className = "exchange";
+  wrap.append(...turns.map(turnNode));
+  return wrap;
+}
+
+function turnNode(turn: Turn) {
   const wrap = document.createElement("article");
-  wrap.className = "turn";
+  wrap.className = turn.role === "user" ? "turn user" : "turn";
   const who = document.createElement("p");
   who.className = "who";
   who.textContent = turn.role === "user" ? "You" : "Claude";
-  const body = document.createElement("p");
-  body.textContent = turn.text;
-  wrap.append(who, body);
+  wrap.append(who);
+  if (turn.role === "user") {
+    const body = document.createElement("p");
+    body.textContent = turn.text;
+    wrap.append(body);
+  } else {
+    wrap.append(assistantBody(turn.text));
+  }
   for (const tool of turn.tools ?? []) {
     const card = document.createElement("div");
     card.className = "tool";
-    card.innerHTML = `<div class="name">${escapeHtml(tool.name)}</div><pre></pre>`;
-    (card.querySelector("pre") as HTMLElement).textContent = tool.summary;
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = tool.name;
+    const pre = document.createElement("pre");
+    pre.textContent = tool.summary;
+    card.append(name, pre);
     wrap.append(card);
   }
   if (turn.status && turn.status !== "ok") {
@@ -159,8 +198,103 @@ function turnNode(turn: { role: string; text: string; tools?: { name: string; su
   return wrap;
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch] ?? ch);
+function assistantBody(text: string): HTMLElement {
+  const body = document.createElement("div");
+  body.className = "md";
+  try {
+    const { fragment, blocks } = renderMarkdownFragment(text);
+    for (const node of Array.from(fragment.querySelectorAll("p"))) {
+      const match = /^%%CC_MERMAID_(\d+)%%$/.exec(node.textContent?.trim() ?? "");
+      if (!match) continue;
+      const slot = document.createElement("div");
+      slot.className = "mermaid";
+      slot.dataset.index = match[1];
+      node.replaceWith(slot);
+    }
+    for (const table of Array.from(fragment.querySelectorAll("table"))) {
+      const hold = document.createElement("div");
+      hold.className = "table-wrap";
+      table.replaceWith(hold);
+      hold.append(table);
+    }
+    body.append(fragment);
+    if (blocks.length) void fillMermaid(body, blocks);
+  } catch {
+    body.textContent = text;
+  }
+  return body;
+}
+
+let sandbox: HTMLIFrameElement | null = null;
+let sandboxReady: Promise<HTMLIFrameElement> | null = null;
+const mermaidWait = new Map<string, (svg: string | null) => void>();
+
+function ensureSandbox(): Promise<HTMLIFrameElement> {
+  if (sandboxReady) return sandboxReady;
+  sandboxReady = new Promise((resolve) => {
+    const frame = document.createElement("iframe");
+    frame.hidden = true;
+    frame.title = "Mermaid";
+    frame.src = "sandbox.html";
+    frame.addEventListener("load", () => resolve(frame), { once: true });
+    document.body.append(frame);
+    sandbox = frame;
+    window.addEventListener("message", (event) => {
+      if (event.source !== sandbox?.contentWindow) return;
+      const msg = event.data as MermaidReply;
+      if (!msg || (msg.kind !== "svg" && msg.kind !== "error")) return;
+      const wait = mermaidWait.get(msg.id);
+      if (!wait) return;
+      mermaidWait.delete(msg.id);
+      wait(msg.kind === "svg" ? msg.svg : null);
+    });
+  });
+  return sandboxReady;
+}
+
+function askMermaid(id: string, source: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      mermaidWait.delete(id);
+      resolve(null);
+    }, 8000);
+    mermaidWait.set(id, (svg) => {
+      window.clearTimeout(timer);
+      resolve(svg);
+    });
+    void ensureSandbox().then((frame) => {
+      const ask: MermaidAsk = { kind: "render", id, source };
+      frame.contentWindow?.postMessage(ask, "*");
+    });
+  });
+}
+
+async function fillMermaid(root: HTMLElement, blocks: MermaidBlock[]) {
+  for (const block of blocks) {
+    const index = block.id.replace("mermaid-", "");
+    const slot = root.querySelector(`[data-index="${index}"]`);
+    if (!(slot instanceof HTMLElement)) continue;
+    const svg = await askMermaid(block.id, block.source);
+    if (!svg) {
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = block.source;
+      pre.append(code);
+      slot.replaceChildren(pre);
+      continue;
+    }
+    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const el = parsed.documentElement;
+    if (el.tagName.toLowerCase() === "svg") {
+      slot.replaceChildren(document.importNode(el, true));
+    } else {
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = block.source;
+      pre.append(code);
+      slot.replaceChildren(pre);
+    }
+  }
 }
 
 function startRename(row: HTMLElement, session: Session) {
