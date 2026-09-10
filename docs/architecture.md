@@ -19,6 +19,7 @@ flowchart LR
   subgraph extension [Extension]
     SW["service worker"]
     DT["hidden DevTools page\nagent loop + Anthropic"]
+    Panel["Claude panel"]
     Opt["options.html"]
   end
 
@@ -26,6 +27,8 @@ flowchart LR
   Stub -->|"postMessage PAGE_SOURCE"| Bridge
   Bridge -->|"runtime.sendMessage"| SW
   SW -->|"Port name: devtools"| DT
+  Panel -->|"Port name: panel"| SW
+  DT -->|"chrome.storage.local sessions"| Panel
   DT -->|"Messages API"| Anthropic["api.anthropic.com"]
   DT -->|"window.confirm\nextension origin"| DT
   DT -->|"scripting.executeScript MAIN"| Eval
@@ -88,7 +91,7 @@ Confirm uses `window.confirm` on the DevTools page, not the inspected page. The 
 
 Four Vite passes. Always `npm run build`.
 
-1. `vite.config.ts` empties `dist/` and builds options + DevTools HTML/JS
+1. `vite.config.ts` empties `dist/` and builds options + DevTools + panel HTML/JS
 2. `vite.stub.config.ts` IIFE → `stub.js`
 3. `vite.isolated.config.ts` IIFE → `content.js`
 4. `vite.background.config.ts` IIFE → `background.js` (no ES module imports; Edge is picky)
@@ -100,7 +103,9 @@ Four Vite passes. Always `npm run build`.
 | `src/page-stub.ts` | MAIN world: `claude`, `__ccEval`, `__ccLog` |
 | `src/content-isolated.ts` | Isolated bridge + confirm sync |
 | `src/background.ts` | Ports, config, toolbar → Options |
-| `src/devtools.ts` | Agent loop, Anthropic, confirm, eval, network, resources |
+| `src/devtools.ts` | Agent loop, Anthropic, confirm, eval, network, resources, session persist |
+| `src/sessions.ts` | Origin-keyed session store |
+| `src/panel.ts` | Claude panel view + composer |
 | `src/agent.ts` | Step loop (no Chrome APIs) |
 | `src/observe.ts` | Pure HAR / resource summaries |
 | `src/anthropic.ts` | `POST /v1/messages` |

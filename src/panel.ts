@@ -39,10 +39,11 @@ function connect() {
     const next = chrome.runtime.connect({ name: PANEL_PORT });
     port = next;
     next.postMessage({ kind: "hello", tabId });
-    next.onMessage.addListener((msg: ConfirmRequest | { kind?: string; id?: string; error?: string }) => {
-      if (msg && "kind" in msg && msg.kind === "confirm-request") {
-        confirmId = msg.id;
-        codeEl.textContent = msg.code;
+    next.onMessage.addListener((msg: ConfirmRequest | { kind?: string }) => {
+      if (msg && msg.kind === "confirm-request") {
+        const request = msg as ConfirmRequest;
+        confirmId = request.id;
+        codeEl.textContent = request.code;
         dlg.showModal();
       }
     });
@@ -236,7 +237,8 @@ chrome.devtools.network.onNavigated.addListener(() => {
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[SESSIONS_KEY] || !origin) return;
-  const next = changes[SESSIONS_KEY].newValue?.[origin] as OriginBucket | undefined;
+  const bag = changes[SESSIONS_KEY].newValue as Record<string, OriginBucket> | undefined;
+  const next = bag?.[origin];
   if (!next) return;
   bucket = next;
   render();
