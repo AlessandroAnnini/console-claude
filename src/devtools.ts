@@ -93,6 +93,7 @@ chrome.devtools.network.onRequestFinished.addListener((request) => {
 
 void ensureStub();
 void syncOrigin();
+chrome.devtools.panels.create("Claude", "", "panel.html");
 chrome.devtools.network.onNavigated.addListener(() => {
   finishedRequests.length = 0;
   void ensureStub();
@@ -256,7 +257,7 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
     return;
   }
   if (msg.type === "reset") {
-    await syncOrigin();
+    await ensureActiveBucket();
     if (origin && bucket) await writeBucket(resetNewSession(bucket));
     messages = [];
     reply(msg);
@@ -279,7 +280,7 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
     return;
   }
 
-  await syncOrigin();
+  await ensureActiveBucket();
   abort = new AbortController();
   const goal =
     msg.selected == null
@@ -362,9 +363,20 @@ async function syncOrigin(): Promise<void> {
   const next = await inspectedOrigin();
   if (!next) return;
   origin = next;
-  const ensured = ensureOrigin(await loadBag(chromeArea()), origin);
-  bucket = ensured.bucket;
-  if (!abort) messages = activeSession(bucket)?.messages ?? [];
+  const existing = (await loadBag(chromeArea()))[origin];
+  if (existing?.sessions.length) {
+    bucket = existing;
+    if (!abort) messages = activeSession(bucket)?.messages ?? [];
+    return;
+  }
+  bucket = null;
+  if (!abort) messages = [];
+}
+
+async function ensureActiveBucket(): Promise<void> {
+  await syncOrigin();
+  if (bucket || !origin) return;
+  await writeBucket(ensureOrigin({}, origin).bucket);
 }
 
 async function writeBucket(next: OriginBucket): Promise<void> {
