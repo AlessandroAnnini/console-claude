@@ -18,6 +18,23 @@ import {
   type NetworkRow,
   type ResourceKind,
 } from "./observe";
+import { DEVTOOLS_PORT, type ConfirmReply } from "./protocol";
+import {
+  activeSession,
+  compactValue,
+  COMPACT_PREVIEW,
+  ensureOrigin,
+  loadBag,
+  putBucket,
+  resetNewSession,
+  saveBag,
+  SESSIONS_KEY,
+  titleFromGoal,
+  type OriginBucket,
+  type SessionsBag,
+  type ToolCard,
+  type TurnStatus,
+} from "./sessions";
 import { chromeArea, loadSettings } from "./storage";
 
 const tabId = chrome.devtools.inspectedWindow.tabId;
@@ -25,15 +42,26 @@ const tabId = chrome.devtools.inspectedWindow.tabId;
 let port: chrome.runtime.Port | null = null;
 let abort: AbortController | null = null;
 let messages: unknown[] = [];
+let origin = "";
+let bucket: OriginBucket | null = null;
+let confirmSeq = 0;
+const confirmWait = new Map<string, (result: boolean | "fallback") => void>();
+let turnTools: ToolCard[] = [];
 
 function connect() {
   try {
-    const next = chrome.runtime.connect({ name: "devtools" });
+    const next = chrome.runtime.connect({ name: DEVTOOLS_PORT });
     port = next;
     next.postMessage({ kind: "hello", tabId });
     next.onMessage.addListener(
-      (msg: { id: string; type: string; goal?: string; selected?: unknown }) => {
-        void handle(msg);
+      (msg: { id?: string; type?: string; goal?: string; selected?: unknown; kind?: string }) => {
+        if (msg.kind === "confirm-reply" && msg.id) {
+          const wait = confirmWait.get(msg.id);
+          const reply = msg as ConfirmReply;
+          wait?.(reply.fallback ? "fallback" : Boolean(reply.allowed));
+          return;
+        }
+        if (msg.id && msg.type) void handle(msg as { id: string; type: string; goal?: string; selected?: unknown });
       },
     );
     next.onDisconnect.addListener(() => {
@@ -64,9 +92,20 @@ chrome.devtools.network.onRequestFinished.addListener((request) => {
 });
 
 void ensureStub();
+void syncOrigin();
 chrome.devtools.network.onNavigated.addListener(() => {
   finishedRequests.length = 0;
   void ensureStub();
+  void onDocumentChanged();
+});
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "local" || !origin) return;
+  const change = changes[SESSIONS_KEY];
+  if (!change) return;
+  const next = (change.newValue as SessionsBag | undefined)?.[origin];
+  if (!next) return;
+  bucket = next;
+  if (!abort) messages = activeSession(next)?.messages ?? [];
 });
 
 function reply(msg: { id: string }, extra: Record<string, unknown> = {}) {
@@ -182,6 +221,7 @@ async function dispatchTool(
       });
       const value = inj?.result ?? { ok: false, error: "No eval result." };
       await pageLog("tool", { name: "eval_js", input: code, result: value });
+      noteTool("eval_js", code, value);
       return value;
     }
     if (name === "network") {
@@ -189,6 +229,7 @@ async function dispatchTool(
       const rows = summarizeHar(await readHar(), filter);
       if (filter.includeBody) await fillBody(rows);
       await pageLog("tool", { name: "network", input: filter, result: rows });
+      noteTool("network", filter, rows);
       return { ok: true, result: rows };
     }
     if (name === "resources") {
@@ -198,6 +239,7 @@ async function dispatchTool(
       };
       const rows = summarizeResources(await readResources(), filter);
       await pageLog("tool", { name: "resources", input: filter, result: rows });
+      noteTool("resources", filter, rows);
       return { ok: true, result: rows };
     }
     return { ok: false, error: `Unknown tool: ${name}` };
@@ -214,6 +256,8 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
     return;
   }
   if (msg.type === "reset") {
+    await syncOrigin();
+    if (origin && bucket) await writeBucket(resetNewSession(bucket));
     messages = [];
     reply(msg);
     return;
@@ -235,19 +279,20 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
     return;
   }
 
+  await syncOrigin();
   abort = new AbortController();
   const goal =
     msg.selected == null
       ? msg.goal
       : `Selected node:\n${JSON.stringify(msg.selected)}\n\n${msg.goal}`;
+  turnTools = [];
+  await beginTurn(goal);
   try {
     const result = await runAgent(goal, {
       signal: abort.signal,
       maxSteps: settings.maxSteps,
       history: messages,
-      confirm: settings.confirm
-        ? async (code) => window.confirm(`Claude wants to execute:\n\n${code}\n\nAllow?`)
-        : undefined,
+      confirm: settings.confirm ? (code) => requestConfirm(code) : undefined,
       complete: async (history) => {
         const response = await completeMessages({
           apiKey: settings.apiKey,
@@ -274,21 +319,137 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
     });
     if (result.messages) messages = result.messages;
     if (result.outcome === "stopped") {
+      await endTurn("Stopped.", "stopped");
       reply(msg, { text: "Stopped." });
       return;
     }
+    await endTurn(result.text, "ok");
     reply(msg, { text: result.text });
   } catch (error) {
     if (isAbortError(error)) {
+      await endTurn("Stopped.", "stopped");
       reply(msg, { text: "Stopped." });
       return;
     }
     const text = error instanceof Error ? error.message : String(error);
     await pageLog("error", text);
+    await endTurn(text, "error");
     reply(msg, { error: text });
   } finally {
     abort = null;
+    if (bucket) await writeBucket({ ...bucket, running: false });
   }
+}
+
+function noteTool(name: string, input: unknown, result: unknown) {
+  const compact = compactValue({ input, result });
+  const summary =
+    typeof compact === "object" && compact && "preview" in compact
+      ? String((compact as { preview: string }).preview)
+      : (JSON.stringify(compact) ?? "");
+  turnTools.push({ name, summary: summary.slice(0, COMPACT_PREVIEW) });
+}
+
+function inspectedOrigin(): Promise<string> {
+  return new Promise((resolve) => {
+    chrome.devtools.inspectedWindow.eval("location.origin", (result) => {
+      resolve(typeof result === "string" ? result : "");
+    });
+  });
+}
+
+async function syncOrigin(): Promise<void> {
+  const next = await inspectedOrigin();
+  if (!next) return;
+  origin = next;
+  const ensured = ensureOrigin(await loadBag(chromeArea()), origin);
+  bucket = ensured.bucket;
+  if (!abort) messages = activeSession(bucket)?.messages ?? [];
+}
+
+async function writeBucket(next: OriginBucket): Promise<void> {
+  bucket = next;
+  if (!origin) return;
+  await saveBag(putBucket(await loadBag(chromeArea()), origin, next), chromeArea());
+}
+
+async function onDocumentChanged(): Promise<void> {
+  const next = await inspectedOrigin();
+  if (next && next !== origin) {
+    await syncOrigin();
+    return;
+  }
+  if (!bucket) return;
+  await writeBucket({ ...bucket, navigatedAt: Date.now() });
+}
+
+async function beginTurn(goal: string): Promise<void> {
+  if (!bucket) return;
+  const active = activeSession(bucket);
+  if (!active) return;
+  const title = active.title === "Untitled" ? titleFromGoal(goal) : active.title;
+  await writeBucket({
+    ...bucket,
+    running: true,
+    sessions: bucket.sessions.map((item) =>
+      item.id === active.id
+        ? {
+            ...item,
+            title,
+            turns: [...item.turns, { role: "user", text: goal }],
+            updatedAt: Date.now(),
+          }
+        : item,
+    ),
+  });
+}
+
+async function endTurn(text: string, status: TurnStatus): Promise<void> {
+  if (!bucket) return;
+  const active = activeSession(bucket);
+  if (!active) return;
+  await writeBucket({
+    ...bucket,
+    running: false,
+    sessions: bucket.sessions.map((item) =>
+      item.id === active.id
+        ? {
+            ...item,
+            messages,
+            turns: [
+              ...item.turns,
+              { role: "assistant", text, status, tools: turnTools.length ? turnTools : undefined },
+            ],
+            updatedAt: Date.now(),
+          }
+        : item,
+    ),
+  });
+}
+
+function requestConfirm(code: string): Promise<boolean> {
+  const id = `cf-${++confirmSeq}`;
+  return new Promise((resolve) => {
+    confirmWait.set(id, (result) => {
+      confirmWait.delete(id);
+      if (result === "fallback") {
+        resolve(window.confirm(`Claude wants to execute:\n\n${code}\n\nAllow?`));
+        return;
+      }
+      resolve(result);
+    });
+    try {
+      if (!port) {
+        confirmWait.delete(id);
+        resolve(window.confirm(`Claude wants to execute:\n\n${code}\n\nAllow?`));
+        return;
+      }
+      port.postMessage({ kind: "confirm-request", id, code });
+    } catch {
+      confirmWait.delete(id);
+      resolve(window.confirm(`Claude wants to execute:\n\n${code}\n\nAllow?`));
+    }
+  });
 }
 
 async function pageLog(kind: string, payload?: unknown) {
