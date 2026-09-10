@@ -95,6 +95,7 @@ function attachPanel(port: chrome.runtime.Port) {
       id,
       type,
       goal: "goal" in msg ? msg.goal : undefined,
+      via: "via" in msg && msg.via === "console" ? "console" : "panel",
     };
     void forwardToDevtools(request, tabId).then((reply) => {
       try {

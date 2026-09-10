@@ -120,7 +120,7 @@ function install(): void {
     }
     busy = true;
     try {
-      const extra: Partial<PageRequest> = { goal: ask.goal };
+      const extra: Partial<PageRequest> = { goal: ask.goal, via: "console" };
       if (ask.selected.length === 1) extra.selected = serialize(ask.selected[0]);
       else if (ask.selected.length > 1) extra.selected = ask.selected.map((node) => serialize(node));
       const reply = await send("ask", extra);

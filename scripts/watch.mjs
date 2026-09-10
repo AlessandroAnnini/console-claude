@@ -9,6 +9,7 @@ const configs = [
   "vite.stub.config.ts",
   "vite.isolated.config.ts",
   "vite.background.config.ts",
+  "vite.sandbox.config.ts",
 ];
 
 for (const config of configs) {

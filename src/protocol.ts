@@ -16,6 +16,8 @@ export type PageRequestType =
   | "config-get"
   | "config-set";
 
+export type AskVia = "console" | "panel";
+
 export type PageRequest = {
   source: typeof PAGE_SOURCE;
   id: string;
@@ -23,6 +25,7 @@ export type PageRequest = {
   goal?: string;
   confirm?: boolean;
   selected?: unknown;
+  via?: AskVia;
 };
 
 export type ConfigSnapshot = {

@@ -7,7 +7,7 @@
  * read-only chrome.devtools.* snapshots (no debugger permission).
  */
 import { runAgent, type ToolResult } from "./agent";
-import { completeMessages } from "./anthropic";
+import { completeMessages, completeTitle } from "./anthropic";
 import { isAbortError } from "./errors";
 import {
   attachBody,
@@ -18,7 +18,7 @@ import {
   type NetworkRow,
   type ResourceKind,
 } from "./observe";
-import { DEVTOOLS_PORT, type ConfirmReply } from "./protocol";
+import { DEVTOOLS_PORT, type AskVia, type ConfirmReply } from "./protocol";
 import {
   activeSession,
   compactValue,
@@ -26,10 +26,13 @@ import {
   ensureOrigin,
   loadBag,
   putBucket,
+  renameSession,
   resetNewSession,
   saveBag,
   SESSIONS_KEY,
-  titleFromGoal,
+  shouldForkOnAsk,
+  shouldNameSession,
+  UNTITLED,
   type OriginBucket,
   type SessionsBag,
   type ToolCard,
@@ -41,6 +44,7 @@ const tabId = chrome.devtools.inspectedWindow.tabId;
 
 let port: chrome.runtime.Port | null = null;
 let abort: AbortController | null = null;
+let turnSessionId: string | null = null;
 let messages: unknown[] = [];
 let origin = "";
 let bucket: OriginBucket | null = null;
@@ -54,14 +58,25 @@ function connect() {
     port = next;
     next.postMessage({ kind: "hello", tabId });
     next.onMessage.addListener(
-      (msg: { id?: string; type?: string; goal?: string; selected?: unknown; kind?: string }) => {
+      (msg: {
+        id?: string;
+        type?: string;
+        goal?: string;
+        selected?: unknown;
+        kind?: string;
+        via?: AskVia;
+      }) => {
         if (msg.kind === "confirm-reply" && msg.id) {
           const wait = confirmWait.get(msg.id);
           const reply = msg as ConfirmReply;
           wait?.(reply.fallback ? "fallback" : Boolean(reply.allowed));
           return;
         }
-        if (msg.id && msg.type) void handle(msg as { id: string; type: string; goal?: string; selected?: unknown });
+        if (msg.id && msg.type) {
+          void handle(
+            msg as { id: string; type: string; goal?: string; selected?: unknown; via?: AskVia },
+          );
+        }
       },
     );
     next.onDisconnect.addListener(() => {
@@ -91,12 +106,12 @@ chrome.devtools.network.onRequestFinished.addListener((request) => {
   if (finishedRequests.length > REQUEST_CACHE_MAX) finishedRequests.shift();
 });
 
-void ensureStub();
+void ensurePageHooks();
 void syncOrigin();
-chrome.devtools.panels.create("Claude", "", "panel.html");
+chrome.devtools.panels.create("Console Claude", "", "panel.html");
 chrome.devtools.network.onNavigated.addListener(() => {
   finishedRequests.length = 0;
-  void ensureStub();
+  void ensurePageHooks();
   void onDocumentChanged();
 });
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -113,23 +128,48 @@ function reply(msg: { id: string }, extra: Record<string, unknown> = {}) {
   port?.postMessage({ kind: "reply", id: msg.id, ...extra });
 }
 
-async function ensureStub() {
+/** MAIN stub can survive an extension reload; the isolated bridge cannot. */
+async function ensurePageHooks() {
   try {
-    const [probe] = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      func: () =>
-        typeof (window as unknown as { __ccEval?: unknown }).__ccEval === "function",
+    await injectIfMissing({
+      world: "ISOLATED",
+      file: "content.js",
+      present: () => {
+        try {
+          const flag = Boolean((globalThis as { __ccBridge?: boolean }).__ccBridge);
+          return flag && typeof chrome.runtime?.id === "string" && chrome.runtime.id.length > 0;
+        } catch {
+          return false;
+        }
+      },
     });
-    if (probe?.result) return;
-    await chrome.scripting.executeScript({
-      target: { tabId },
+    await injectIfMissing({
       world: "MAIN",
-      files: ["stub.js"],
+      file: "stub.js",
+      present: () =>
+        typeof (window as unknown as { __ccEval?: unknown }).__ccEval === "function",
     });
   } catch {
     // chrome://, Web Store, and other restricted pages cannot be injected.
   }
+}
+
+async function injectIfMissing(opts: {
+  world: `${chrome.scripting.ExecutionWorld}`;
+  file: string;
+  present: () => boolean;
+}) {
+  const [probe] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: opts.world,
+    func: opts.present,
+  });
+  if (probe?.result) return;
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: opts.world,
+    files: [opts.file],
+  });
 }
 
 function resourceType(value: unknown): ResourceKind | undefined {
@@ -250,13 +290,20 @@ async function dispatchTool(
   }
 }
 
-async function handle(msg: { id: string; type: string; goal?: string; selected?: unknown }) {
+async function handle(msg: {
+  id: string;
+  type: string;
+  goal?: string;
+  selected?: unknown;
+  via?: AskVia;
+}) {
   if (msg.type === "stop") {
     abort?.abort();
     reply(msg);
     return;
   }
   if (msg.type === "reset") {
+    abort?.abort();
     await ensureActiveBucket();
     if (origin && bucket) await writeBucket(resetNewSession(bucket));
     messages = [];
@@ -271,6 +318,10 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
     reply(msg, { error: "Unknown request." });
     return;
   }
+  if (abort) {
+    reply(msg, { error: "Claude is already running. Use claude.stop() first." });
+    return;
+  }
 
   const settings = await loadSettings(chromeArea());
   if (!settings.apiKey) {
@@ -281,6 +332,10 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
   }
 
   await ensureActiveBucket();
+  if (bucket && shouldForkOnAsk(msg.via, activeSession(bucket)?.turns.length ?? 0)) {
+    await writeBucket(resetNewSession(bucket));
+    messages = [];
+  }
   abort = new AbortController();
   const goal =
     msg.selected == null
@@ -288,11 +343,12 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
       : `Selected node:\n${JSON.stringify(msg.selected)}\n\n${msg.goal}`;
   turnTools = [];
   await beginTurn(goal);
+  let runHistory = messages;
   try {
     const result = await runAgent(goal, {
       signal: abort.signal,
       maxSteps: settings.maxSteps,
-      history: messages,
+      history: runHistory,
       confirm: settings.confirm ? (code) => requestConfirm(code) : undefined,
       complete: async (history) => {
         const response = await completeMessages({
@@ -318,26 +374,30 @@ async function handle(msg: { id: string; type: string; goal?: string; selected?:
       },
       runTool: (name, input) => dispatchTool(name, input),
     });
-    if (result.messages) messages = result.messages;
+    if (result.messages) {
+      runHistory = result.messages;
+      messages = result.messages;
+    }
     if (result.outcome === "stopped") {
-      await endTurn("Stopped.", "stopped");
+      await endTurn("Stopped.", "stopped", runHistory);
       reply(msg, { text: "Stopped." });
       return;
     }
-    await endTurn(result.text, "ok");
+    await endTurn(result.text, "ok", runHistory);
     reply(msg, { text: result.text });
   } catch (error) {
     if (isAbortError(error)) {
-      await endTurn("Stopped.", "stopped");
+      await endTurn("Stopped.", "stopped", runHistory);
       reply(msg, { text: "Stopped." });
       return;
     }
     const text = error instanceof Error ? error.message : String(error);
     await pageLog("error", text);
-    await endTurn(text, "error");
+    await endTurn(text, "error", runHistory);
     reply(msg, { error: text });
   } finally {
     abort = null;
+    turnSessionId = null;
     if (bucket) await writeBucket({ ...bucket, running: false });
   }
 }
@@ -395,11 +455,20 @@ async function onDocumentChanged(): Promise<void> {
   await writeBucket({ ...bucket, navigatedAt: Date.now() });
 }
 
+function turnSession() {
+  if (!bucket) return undefined;
+  if (turnSessionId) {
+    const pinned = bucket.sessions.find((item) => item.id === turnSessionId);
+    if (pinned) return pinned;
+  }
+  return activeSession(bucket);
+}
+
 async function beginTurn(goal: string): Promise<void> {
   if (!bucket) return;
   const active = activeSession(bucket);
   if (!active) return;
-  const title = active.title === "Untitled" ? titleFromGoal(goal) : active.title;
+  turnSessionId = active.id;
   await writeBucket({
     ...bucket,
     running: true,
@@ -407,7 +476,6 @@ async function beginTurn(goal: string): Promise<void> {
       item.id === active.id
         ? {
             ...item,
-            title,
             turns: [...item.turns, { role: "user", text: goal }],
             updatedAt: Date.now(),
           }
@@ -416,18 +484,18 @@ async function beginTurn(goal: string): Promise<void> {
   });
 }
 
-async function endTurn(text: string, status: TurnStatus): Promise<void> {
+async function endTurn(text: string, status: TurnStatus, history: unknown[] = messages): Promise<void> {
   if (!bucket) return;
-  const active = activeSession(bucket);
-  if (!active) return;
+  const target = turnSession();
+  if (!target) return;
   await writeBucket({
     ...bucket,
     running: false,
     sessions: bucket.sessions.map((item) =>
-      item.id === active.id
+      item.id === target.id
         ? {
             ...item,
-            messages,
+            messages: history,
             turns: [
               ...item.turns,
               { role: "assistant", text, status, tools: turnTools.length ? turnTools : undefined },
@@ -437,6 +505,29 @@ async function endTurn(text: string, status: TurnStatus): Promise<void> {
         : item,
     ),
   });
+  await maybeNameSession(text, status, target.id);
+}
+
+async function maybeNameSession(answer: string, status: TurnStatus, sessionId: string): Promise<void> {
+  if (!bucket) return;
+  const target = bucket.sessions.find((item) => item.id === sessionId);
+  if (!target || !shouldNameSession(target, status)) return;
+  const settings = await loadSettings(chromeArea());
+  if (!settings.apiKey) return;
+  const user = target.turns.find((turn) => turn.role === "user")?.text ?? "";
+  try {
+    const title = await completeTitle({
+      apiKey: settings.apiKey,
+      user,
+      assistant: answer,
+    });
+    if (!title || !bucket) return;
+    const current = bucket.sessions.find((item) => item.id === sessionId);
+    if (!current || current.title !== UNTITLED) return;
+    await writeBucket(renameSession(bucket, current.id, title));
+  } catch {
+    // Leave Untitled; the user can rename.
+  }
 }
 
 function requestConfirm(code: string): Promise<boolean> {

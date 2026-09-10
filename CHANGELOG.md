@@ -1,25 +1,24 @@
 # Changelog
 
-
-## [0.0.2] - 2026-09-10
-
-### Added
-
-- Feature `panel-transcript` shipped to develop.
-
-## [0.0.1] - 2026-09-10
-
-### Added
-
-- Feature `devtools-sessions` shipped to develop.
-All notable changes to this project are documented here.
+All notable changes to this project are documented here. Product versions follow `package.json` (currently 0.4.0). Studio `VERSION` 0.0.x tags are not store releases.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-10
+
 ### Added
 
-- DevTools **Claude** panel: origin-scoped sessions (create, rename, delete), durable transcript, and a Send/Stop composer. `claude('…')` / `claude.reset()` attach to the active session. Confirm-before-eval appears in the panel when it is open.
-- Panel answers render GFM Markdown (tables) and mermaid fences (sandboxed). Session delete is a `×` mark. Hairlines separate each ask/answer pair. `lodash-es` is pinned to 4.18.1 (mermaid/chevrotain).
+- DevTools **Console Claude** panel: origin-scoped sessions (create, rename, delete), durable transcript, and a Send/Stop composer. Confirm-before-eval appears in the panel when it is open.
+- Panel answers render GFM Markdown (tables, hard line breaks) and mermaid fences (sandboxed PNG/Code download). Session delete is a `×` mark. Hairlines separate each ask/answer pair. `lodash-es` is pinned to 4.18.1 (mermaid/chevrotain).
+- Assistant code fences get quiet syntax highlighting, CSS line numbers, and a Copy control that copies the raw source.
+- Console `claude('…')` starts a new session when the selected one already has history. The first successful answer names an Untitled session. Title search and a resizable Sessions drawer.
+- Agent tool steps reuse Anthropic prompt cache on the system prompt and tools. The mermaid sandbox is shipped as `sandbox.html` only (no twin `sandbox.js`). The panel no longer rebuilds older transcript turns on title or running-state updates.
+
+### Fixed
+
+- Session rename is double-click only. Enter and Esc always leave the field (DevTools was swallowing those keys on a single-click rename that also stole focus).
+- Assistant Markdown ignores raw HTML (marked has no `html: false` in v18; the HTML tokenizer is disabled). Mermaid SVG is sanitized before insert. Diagram requests use unique ids so a transcript refresh cannot swap a drawing for a fence.
+- Panel shows a Thinking mark while a run is in flight. Exchange breaks use a hairline plus `○ ─ · ─ ✦` so they stay visible among tool cards. Claude is told to emit mermaid fences instead of mermaid.live links. Mermaid sandbox inlines its IIFE into `sandbox.html` (Chrome’s unique-origin page cannot fetch a sibling `sandbox.js`).
 
 ## [0.3.2] - 2026-09-02
 
@@ -79,7 +78,7 @@ All notable changes to this project are documented here.
 - After a key is saved, Options shows a Remove key button instead of the password field.
 - Options page uses the product visual tokens and explains the console commands.
 - Toolbar icon opens Options.
-- `npm test` is `vitest run`. `npm run dev` watches all four Vite builds.
+- `npm test` is `vitest run`. `npm run dev` watches all five Vite builds.
 
 ## [0.1.0] - 2026-08-28
 

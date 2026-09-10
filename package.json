@@ -1,7 +1,7 @@
 {
   "name": "console-claude",
   "private": true,
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Unofficial DevTools REPL. Not affiliated with Anthropic. Type a goal; Claude inspects the live page.",
   "license": "AGPL-3.0",
   "author": "Alessandro Annini",
@@ -19,7 +19,7 @@
   },
   "scripts": {
     "dev": "node scripts/watch.mjs",
-    "build": "vite build && vite build --config vite.stub.config.ts && vite build --config vite.isolated.config.ts && vite build --config vite.background.config.ts",
+    "build": "vite build && vite build --config vite.stub.config.ts && vite build --config vite.isolated.config.ts && vite build --config vite.background.config.ts && vite build --config vite.sandbox.config.ts",
     "pack": "npm run build && node scripts/pack.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "dompurify": "^3.4.15",
+    "highlight.js": "^11.12.0",
     "marked": "^18.0.12",
     "mermaid": "^12.0.0"
   },

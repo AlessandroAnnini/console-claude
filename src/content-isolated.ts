@@ -55,3 +55,5 @@ try {
 } catch {
   // Reloaded while this content script was still attached.
 }
+
+(globalThis as unknown as { __ccBridge?: boolean }).__ccBridge = true;

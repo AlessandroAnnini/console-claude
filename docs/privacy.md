@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: 31 August 2026
+Last updated: 10 September 2026
 
 Console Claude is an independent browser extension. It is not an official Anthropic product and is not affiliated with, endorsed by, or sponsored by Anthropic PBC. It does not operate an account system and it does not run its own backend.
 
@@ -10,8 +10,9 @@ When you save settings on the Options page, the extension writes to `chrome.stor
 
 - your Anthropic API key
 - model id, max steps, and the confirm-before-eval flag
+- origin-scoped Console Claude panel sessions (titles and compact transcript turns)
 
-The key is not written into the inspected page. Removing the key from Options deletes it from that storage.
+The key is not written into the inspected page. Removing the key from Options deletes it from that storage. Sessions stay on this browser profile until you delete them in the panel.
 
 ## What is sent over the network
 
@@ -22,7 +23,7 @@ During a run, the hidden DevTools page sends HTTPS requests to `https://api.anth
 - conversation history for that DevTools session
 - serialized results of JavaScript that Claude asked to run on the page
 
-Anthropic's handling of that traffic is governed by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy). Console Claude does not send data to any other remote service. There is no analytics, crash reporter, or advertising pixel.
+Anthropic's handling of that traffic is governed by [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy). Console Claude does not send data to any other remote service. Mermaid diagrams render in a local sandboxed page; they are not fetched from a CDN. There is no analytics, crash reporter, or advertising pixel.
 
 ## What runs on the page
 

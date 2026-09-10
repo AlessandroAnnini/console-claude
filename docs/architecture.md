@@ -19,7 +19,8 @@ flowchart LR
   subgraph extension [Extension]
     SW["service worker"]
     DT["hidden DevTools page\nagent loop + Anthropic"]
-    Panel["Claude panel"]
+    Panel["Console Claude panel"]
+    Sandbox["sandbox.html mermaid"]
     Opt["options.html"]
   end
 
@@ -28,9 +29,10 @@ flowchart LR
   Bridge -->|"runtime.sendMessage"| SW
   SW -->|"Port name: devtools"| DT
   Panel -->|"Port name: panel"| SW
+  Panel -->|"postMessage"| Sandbox
   DT -->|"chrome.storage.local sessions"| Panel
   DT -->|"Messages API"| Anthropic["api.anthropic.com"]
-  DT -->|"window.confirm\nextension origin"| DT
+  DT -->|"confirm: panel or window.confirm"| DT
   DT -->|"scripting.executeScript MAIN"| Eval
   DT -->|"devtools.network / getResources"| Observe["HAR and resources"]
   Eval --> Stub
@@ -82,19 +84,21 @@ MV3 service workers can sleep mid-run. The DevTools page stays alive for the who
 | Service worker | settings object in storage calls | no |
 | Isolated content script | no | no |
 | MAIN stub | no | yes (`eval` of model code) |
+| Mermaid sandbox page | no | no (diagram SVG only) |
 
 Unit tests fail if `page-stub.ts` or `dist/stub.js` contain `apiKey`, `x-api-key`, `sk-ant`, `anthropic`, or `fetch(`.
 
-Confirm uses `window.confirm` on the DevTools page, not the inspected page. The page can override its own `confirm`.
+When the Console Claude panel is connected, confirm is Allow / Deny in the panel. Otherwise it uses `window.confirm` on the DevTools page (extension origin), not the inspected page. The page can override its own `confirm`.
 
 ## Build
 
-Four Vite passes. Always `npm run build`.
+Five Vite passes. Always `npm run build`.
 
 1. `vite.config.ts` empties `dist/` and builds options + DevTools + panel HTML/JS
 2. `vite.stub.config.ts` IIFE → `stub.js`
 3. `vite.isolated.config.ts` IIFE → `content.js`
 4. `vite.background.config.ts` IIFE → `background.js` (no ES module imports; Edge is picky)
+5. `vite.sandbox.config.ts` IIFE inlined into `sandbox.html` only (mermaid; unique-origin sandbox cannot fetch a sibling script)
 
 ## Source map
 
@@ -105,7 +109,10 @@ Four Vite passes. Always `npm run build`.
 | `src/background.ts` | Ports, config, toolbar → Options |
 | `src/devtools.ts` | Agent loop, Anthropic, confirm, eval, network, resources, session persist |
 | `src/sessions.ts` | Origin-keyed session store |
-| `src/panel.ts` | Claude panel view + composer |
+| `src/panel.ts` | Console Claude panel view + composer |
+| `src/markdown.ts` | GFM parse + DOMPurify for assistant turns |
+| `src/sandbox.ts` | Bundled mermaid.render (MV3 sandbox page) |
+| `src/panel-copy.ts` | Session delete mark (`×`) |
 | `src/agent.ts` | Step loop (no Chrome APIs) |
 | `src/observe.ts` | Pure HAR / resource summaries |
 | `src/anthropic.ts` | `POST /v1/messages` |
@@ -123,3 +130,5 @@ Four Vite passes. Always `npm run build`.
 - Serializer caps: depth 4, 100 keys, text 3000, html 10000
 - Model tools: `eval_js` (page JS, confirm), `network` and `resources` (read-only `chrome.devtools.*`). Routing lives in `agent.ts` and `devtools.ts` together. No `chrome.debugger`.
 - Each tool logs as one collapsed `Claude → name` group (input + result). Final text is `Claude:`.
+- Assistant Markdown is `marked` then DOMPurify. User turns stay `textContent`. No images.
+- Mermaid runs only in `sandbox.html`. Do not add `unsafe-eval` to `extension_pages` CSP.

@@ -9,8 +9,12 @@ import {
   originFromUrl,
   renameSession,
   resetNewSession,
+  sanitizeTitle,
   selectSession,
   SESSION_CAP,
+  sessionMatchesTitle,
+  shouldForkOnAsk,
+  shouldNameSession,
   titleFromGoal,
 } from "./sessions";
 
@@ -64,6 +68,43 @@ describe("AC4-reset-new-session", () => {
     expect(active?.messages).toEqual([]);
     expect(active?.id).not.toBe("one");
     expect(active?.id).not.toBe("two");
+  });
+});
+
+describe("shouldForkOnAsk", () => {
+  it("forks a console ask only when the selected session has turns", () => {
+    expect(shouldForkOnAsk("console", 1)).toBe(true);
+    expect(shouldForkOnAsk("console", 0)).toBe(false);
+    expect(shouldForkOnAsk("panel", 4)).toBe(false);
+    expect(shouldForkOnAsk(undefined, 2)).toBe(false);
+  });
+});
+
+describe("shouldNameSession", () => {
+  it("names only an Untitled session after an ok answer", () => {
+    const untitled = createSession({ id: "a", now: 1 });
+    expect(shouldNameSession(untitled, "ok")).toBe(true);
+    expect(shouldNameSession(untitled, "error")).toBe(false);
+    expect(shouldNameSession(untitled, "stopped")).toBe(false);
+    expect(shouldNameSession({ ...untitled, title: "Earth orbit" }, "ok")).toBe(false);
+  });
+});
+
+describe("sanitizeTitle", () => {
+  it("strips quotes, periods, and overflow", () => {
+    expect(sanitizeTitle('  "Earth orbit diagram."  ')).toBe("Earth orbit diagram");
+    expect(sanitizeTitle("x".repeat(60)).length).toBe(48);
+    expect(sanitizeTitle("Untitled")).toBe("");
+    expect(sanitizeTitle("   ")).toBe("");
+  });
+});
+
+describe("sessionMatchesTitle", () => {
+  it("filters by case-insensitive substring", () => {
+    expect(sessionMatchesTitle("Earth orbit", "")).toBe(true);
+    expect(sessionMatchesTitle("Earth orbit", "  ")).toBe(true);
+    expect(sessionMatchesTitle("Earth orbit", "ORBIT")).toBe(true);
+    expect(sessionMatchesTitle("Earth orbit", "mars")).toBe(false);
   });
 });
 

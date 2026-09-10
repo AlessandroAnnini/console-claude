@@ -36,9 +36,9 @@ Prefer the [Chrome Web Store](https://chromewebstore.google.com/detail/console-c
 2. `npm run build`
 3. Chrome → `chrome://extensions` → Developer mode → Load unpacked → select **`dist`**
 4. Open Options (toolbar icon). Paste an Anthropic API key. Save.
-5. Open DevTools on an `http` or `https` page. Open the **Claude** tab to type a goal (Send / Stop), or type `claude('…')` in the console. Optional: pick a node in Elements and run `claude($0)`. Console commands attach to the same active session the panel shows.
+5. Open DevTools on an `http` or `https` page. Open the **Console Claude** tab to type a goal (Send / Stop), or type `claude('…')` in the console. Optional: pick a node in Elements and run `claude($0)`. A console ask starts a new session if the selected one already has history. The panel continues the selected session.
 
-DevTools must stay open. After you reload the extension, close DevTools and open it again. The visible console is not enough; a hidden DevTools page owns the agent loop. Sessions are kept per origin in the Claude panel. Claude answers in the panel render Markdown (including tables and mermaid diagrams).
+DevTools must stay open. After you reload the extension, close DevTools and open it again. The visible console is not enough; a hidden DevTools page owns the agent loop. Sessions are kept per origin. The first successful answer names an Untitled session. Search filters titles; **Sessions** toggles the list and the right edge resizes it. Answers render Markdown (tables, mermaid with PNG/Code download, highlighted fences with Copy). Single newlines in Markdown stay as line breaks.
 
 Confirm-before-eval defaults on. Uncheck **Ask before each JavaScript run**, or set `claude.config.confirm = false`. After a key is saved, Options shows **Remove key** instead of the password field.
 
@@ -57,7 +57,7 @@ npm run test:e2e  # build + Playwright (Chromium channel, not headless shell)
 npm run build     # write dist/
 npm run pack      # build + zip dist/ for the Chrome Web Store
 npm run lint
-npm run dev       # watch all four Vite configs
+npm run dev       # watch all five Vite configs
 ```
 
 ## Security

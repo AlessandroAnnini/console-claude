@@ -6,6 +6,7 @@ export const SESSION_CAP = 20;
 export const COMPACT_MAX = 2000;
 export const COMPACT_PREVIEW = 400;
 export const TITLE_MAX = 48;
+export const UNTITLED = "Untitled";
 
 export type TurnStatus = "ok" | "stopped" | "error";
 
@@ -49,16 +50,43 @@ export function originFromUrl(url: string): string {
 
 export function titleFromGoal(goal: string): string {
   const line = goal.trim().split(/\r?\n/, 1)[0]?.trim() ?? "";
-  if (!line) return "Untitled";
+  if (!line) return UNTITLED;
   if (line.length <= TITLE_MAX) return line;
   return `${line.slice(0, TITLE_MAX - 1)}…`;
+}
+
+/** Console forks when the selected session already has turns. Panel never forks. */
+export function shouldForkOnAsk(via: string | undefined, turnCount: number): boolean {
+  return via === "console" && turnCount > 0;
+}
+
+export function sanitizeTitle(raw: string): string {
+  let text = raw
+    .trim()
+    .replace(/^["'“”‘’`]+|["'“”‘’`]+$/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\.+$/g, "")
+    .trim();
+  if (!text || text.toLowerCase() === UNTITLED.toLowerCase()) return "";
+  if (text.length > TITLE_MAX) text = `${text.slice(0, TITLE_MAX - 1)}…`;
+  return text;
+}
+
+export function shouldNameSession(session: Session, status: TurnStatus): boolean {
+  return status === "ok" && session.title === UNTITLED;
+}
+
+export function sessionMatchesTitle(title: string, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return title.toLowerCase().includes(needle);
 }
 
 export function createSession(opts?: { now?: number; id?: string; title?: string }): Session {
   const now = opts?.now ?? Date.now();
   return {
     id: opts?.id ?? newId(),
-    title: opts?.title ?? "Untitled",
+    title: opts?.title ?? UNTITLED,
     createdAt: now,
     updatedAt: now,
     messages: [],

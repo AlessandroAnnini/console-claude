@@ -33,11 +33,30 @@ const ALLOWED_TAGS = [
   "br",
 ];
 
-marked.setOptions({ gfm: true, breaks: false });
+const PURIFY_MD = {
+  ALLOWED_TAGS,
+  ALLOWED_ATTR: ["href", "title", "align", "target", "rel", "class"],
+  ALLOW_DATA_ATTR: false,
+  FORBID_TAGS: ["img", "script", "style", "iframe"],
+};
+
+marked.use({
+  gfm: true,
+  breaks: true,
+  tokenizer: {
+    // marked 18 has no `html: false`; skip block + inline HTML tokenizers.
+    html() {
+      return undefined;
+    },
+    tag() {
+      return undefined;
+    },
+  },
+});
 
 export function extractMermaid(text: string): { text: string; blocks: MermaidBlock[] } {
   const blocks: MermaidBlock[] = [];
-  const next = text.replace(/```mermaid[ \t]*\r?\n([\s\S]*?)```/gi, (_all, src: string) => {
+  const next = text.replace(/(```|~~~)[ \t]*mermaid[ \t]*\r?\n([\s\S]*?)\1/gi, (_all, _fence: string, src: string) => {
     const id = `mermaid-${blocks.length}`;
     blocks.push({ id, source: src.trim() });
     return `\n\n${PLACE(blocks.length - 1)}\n\n`;
@@ -45,25 +64,36 @@ export function extractMermaid(text: string): { text: string; blocks: MermaidBlo
   return { text: next, blocks };
 }
 
+let purifyOnce: ReturnType<typeof createDOMPurify> | null = null;
+
 function purify() {
+  if (purifyOnce) return purifyOnce;
   const instance = createDOMPurify(window);
   instance.addHook("afterSanitizeAttributes", (node) => {
-    if (!("tagName" in node) || (node as Element).tagName !== "A") return;
-    const href = (node as Element).getAttribute("href") ?? "";
-    if (!/^https?:\/\//i.test(href)) (node as Element).removeAttribute("href");
+    if (!(node instanceof Element) || node.tagName !== "A") return;
+    const href = node.getAttribute("href") ?? "";
+    if (!/^https?:\/\//i.test(href)) {
+      node.removeAttribute("href");
+      node.removeAttribute("target");
+      node.removeAttribute("rel");
+      return;
+    }
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
   });
+  purifyOnce = instance;
   return instance;
 }
 
-export function renderMarkdown(source: string): { html: string; blocks: MermaidBlock[] } {
+function parseMarkdown(source: string): { raw: string; blocks: MermaidBlock[] } {
   const { text, blocks } = extractMermaid(source);
   const raw = marked.parse(text, { async: false }) as string;
-  const html = purify().sanitize(raw, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR: ["href", "title", "align"],
-    ALLOW_DATA_ATTR: false,
-    FORBID_TAGS: ["img", "script", "style", "iframe"],
-  });
+  return { raw, blocks };
+}
+
+export function renderMarkdown(source: string): { html: string; blocks: MermaidBlock[] } {
+  const { raw, blocks } = parseMarkdown(source);
+  const html = purify().sanitize(raw, PURIFY_MD);
   return { html, blocks };
 }
 
@@ -71,14 +101,26 @@ export function renderMarkdownFragment(source: string): {
   fragment: DocumentFragment;
   blocks: MermaidBlock[];
 } {
-  const { text, blocks } = extractMermaid(source);
-  const raw = marked.parse(text, { async: false }) as string;
+  const { raw, blocks } = parseMarkdown(source);
   const fragment = purify().sanitize(raw, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR: ["href", "title", "align"],
-    ALLOW_DATA_ATTR: false,
-    FORBID_TAGS: ["img", "script", "style", "iframe"],
+    ...PURIFY_MD,
     RETURN_DOM_FRAGMENT: true,
   });
   return { fragment, blocks };
+}
+
+/** Drop script/handlers from mermaid SVG. Keep foreignObject labels. */
+export function sanitizeMermaidSvg(svg: string): Element | null {
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const el = parsed.documentElement;
+  if (el.tagName.toLowerCase() !== "svg") return null;
+  for (const bad of Array.from(el.querySelectorAll("script, iframe"))) bad.remove();
+  for (const node of Array.from(el.querySelectorAll("*"))) {
+    for (const attr of Array.from(node.attributes)) {
+      if (/^on/i.test(attr.name) || /javascript:/i.test(attr.value)) {
+        node.removeAttribute(attr.name);
+      }
+    }
+  }
+  return document.importNode(el, true);
 }

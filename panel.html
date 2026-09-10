@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Claude</title>
+    <title>Console Claude</title>
     <style>
       :root {
         --bg: #f7f5ee;
@@ -65,17 +65,58 @@
         border-bottom-color: var(--ink);
       }
       .layout {
+        --drawer-width: 216px;
         display: flex;
         flex: 1;
         min-height: 0;
       }
       aside {
-        width: 13.5rem;
+        position: relative;
+        width: var(--drawer-width);
+        flex: 0 0 var(--drawer-width);
         border-right: 1px solid var(--hair);
         padding: 0.65rem 0.6rem;
         display: flex;
         flex-direction: column;
         gap: 0.4rem;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .layout:not(.drawer-dragging) aside {
+        transition:
+          width 0.2s ease,
+          flex-basis 0.2s ease,
+          padding 0.2s ease,
+          border-color 0.2s ease;
+      }
+      .layout.drawer-closed aside {
+        width: 0;
+        flex-basis: 0;
+        padding-left: 0;
+        padding-right: 0;
+        border-right-color: transparent;
+      }
+      #drawerResize {
+        position: absolute;
+        top: 0;
+        right: -3px;
+        z-index: 2;
+        width: 7px;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        cursor: col-resize;
+      }
+      .layout.drawer-closed #drawerResize {
+        display: none;
+      }
+      #drawerToggle {
+        padding: 0.12rem 0.4rem;
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
       }
       #sessions {
         list-style: none;
@@ -141,8 +182,25 @@
         font-size: 0.85rem;
       }
       #banner[hidden],
-      #new[hidden] {
+      #new[hidden],
+      #sessionSearchWrap[hidden] {
         display: none;
+      }
+      #sessionSearch {
+        width: 100%;
+        min-width: 0;
+        font: inherit;
+        font-size: 0.78rem;
+        color: var(--ink);
+        background: var(--paper);
+        border: 1px solid var(--hair);
+        padding: 0.2rem 0.35rem;
+      }
+      #sessions li.none {
+        cursor: default;
+        color: var(--muted);
+        border-color: transparent;
+        background: none;
       }
       #turns {
         flex: 1;
@@ -154,12 +212,46 @@
         margin: 1.5rem 0 0;
       }
       .exchange + .exchange {
-        margin-top: 0.35rem;
-        padding-top: 1.25rem;
+        margin-top: 1.5rem;
+      }
+      .exchange + .exchange::before {
+        content: "○ ─ · ─ ✦";
+        display: block;
+        text-align: center;
+        color: var(--muted);
+        letter-spacing: 0.35em;
+        font-size: 0.65rem;
+        margin: 0 0 1.15rem;
+        padding-top: 1.15rem;
         border-top: 1px solid var(--hair);
+      }
+      .exchange > :last-child {
+        margin-bottom: 0;
       }
       .turn {
         margin: 0 0 0.9rem;
+      }
+      .thinking {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin: 0.35rem 0 0;
+        color: var(--muted);
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .thinking .mark {
+        animation: think 2.4s ease-in-out infinite;
+      }
+      @keyframes think {
+        0%,
+        100% {
+          opacity: 0.22;
+        }
+        50% {
+          opacity: 1;
+        }
       }
       .turn .who {
         font-size: 0.65rem;
@@ -188,9 +280,97 @@
         overflow-x: auto;
         font: 0.78rem/1.4 ui-monospace, "IBM Plex Mono", monospace;
       }
+      .md .code-block {
+        position: relative;
+        margin: 0 0 0.55rem;
+        border: 1px solid var(--hair);
+        background: var(--paper);
+      }
+      .md .code-block pre {
+        margin: 0;
+        border: 0;
+        padding: 1.75rem 0.55rem 0.45rem 0;
+      }
+      .md .chip {
+        padding: 0.12rem 0.4rem;
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        background: var(--paper);
+        color: var(--ink);
+        border: 1px solid var(--hair);
+      }
+      .md .code-block .copy {
+        position: absolute;
+        top: 0.3rem;
+        right: 0.3rem;
+        z-index: 1;
+      }
+      .md .copy-live {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
+      .md .code-block .line {
+        display: block;
+        padding-right: 0.55rem;
+      }
+      .md .code-block .line::before {
+        content: counter(line);
+        counter-increment: line;
+        display: inline-block;
+        width: 2.35rem;
+        margin-right: 0.65rem;
+        text-align: right;
+        color: var(--hair);
+        user-select: none;
+      }
+      .md .code-block code {
+        counter-reset: line;
+        color: var(--ink);
+      }
+      .md .hljs-comment,
+      .md .hljs-quote {
+        color: #8a857c;
+      }
+      .md .hljs-keyword,
+      .md .hljs-selector-tag,
+      .md .hljs-meta {
+        color: #5c4033;
+        font-weight: 500;
+      }
+      .md .hljs-title,
+      .md .hljs-name,
+      .md .hljs-section {
+        color: #3a3f4a;
+        font-weight: 500;
+      }
+      .md .hljs-string,
+      .md .hljs-attr,
+      .md .hljs-attribute,
+      .md .hljs-symbol {
+        color: #7a5340;
+      }
+      .md .hljs-built_in,
+      .md .hljs-type,
+      .md .hljs-class .hljs-title {
+        color: #4a5340;
+      }
+      .md .hljs-number,
+      .md .hljs-literal {
+        color: #3d5348;
+      }
+      .md .hljs-params,
+      .md .hljs-variable,
+      .md .hljs-property,
+      .md .hljs-template-variable {
+        color: #4a463e;
+      }
       .md table {
         border-collapse: collapse;
-        margin: 0 0 0.55rem;
+        margin: 0;
         width: max-content;
         max-width: 100%;
       }
@@ -208,9 +388,27 @@
         background: var(--surface);
         font-weight: 500;
       }
+      .md .diagram {
+        position: relative;
+        margin: 0 0 0.55rem;
+        padding: 1.75rem 0.55rem 0.5rem;
+        border: 1px solid var(--hair);
+        background: var(--paper);
+      }
+      .md .diagram-tools {
+        position: absolute;
+        top: 0.3rem;
+        right: 0.3rem;
+        z-index: 1;
+        display: flex;
+        gap: 0.25rem;
+      }
       .md .mermaid {
         margin: 0 0 0.55rem;
         overflow-x: auto;
+      }
+      .md .diagram .mermaid {
+        margin: 0;
       }
       .md .mermaid svg {
         max-width: 100%;
@@ -312,14 +510,27 @@
   <body>
     <header>
       <p class="mark">○ ─ · ─ ✦</p>
-      <h1>Claude</h1>
+      <button type="button" class="secondary" id="drawerToggle" aria-controls="drawer" aria-expanded="true">
+        Sessions
+      </button>
+      <h1>Console Claude</h1>
       <p id="origin"></p>
       <a href="#" id="options">Options</a>
     </header>
     <div class="layout">
-      <aside>
+      <aside id="drawer">
         <button type="button" class="secondary" id="new" hidden>+ New</button>
+        <div id="sessionSearchWrap" hidden>
+          <input
+            type="search"
+            id="sessionSearch"
+            placeholder="Search sessions"
+            aria-label="Search sessions"
+            autocomplete="off"
+          />
+        </div>
         <ul id="sessions"></ul>
+        <button type="button" id="drawerResize" aria-label="Resize sessions" aria-orientation="vertical"></button>
       </aside>
       <main>
         <p id="banner" hidden></p>
