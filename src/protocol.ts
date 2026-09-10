@@ -58,6 +58,19 @@ export type DevtoolsReply = { kind: "reply"; id: string } & Omit<
   "source" | "type"
 >;
 
+/** Hidden page → SW → panel when confirm-before-eval is on and a panel is connected. */
+export type ConfirmRequest = { kind: "confirm-request"; id: string; code: string };
+/** Panel → SW → hidden page. `fallback` tells the engine to use window.confirm. */
+export type ConfirmReply = {
+  kind: "confirm-reply";
+  id: string;
+  allowed?: boolean;
+  fallback?: boolean;
+};
+
+export const PANEL_PORT = "panel";
+export const DEVTOOLS_PORT = "devtools";
+
 /** Shown when the SW has no live DevTools-page port for this tab. */
 export const DEVTOOLS_REQUIRED =
   "Close DevTools and open it again on this tab. Reloading the extension kills the hidden Console Claude page even if the console stays open.";
