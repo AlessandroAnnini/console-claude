@@ -11,7 +11,12 @@ import {
   loadBag,
   originFromUrl,
   persistOrigin,
+  prettyToolSummary,
   removeOrigin,
+  stepsSummary,
+  toolCardLine,
+  toolLine,
+  toolSummary,
   SESSIONS_KEY,
   renameSession,
   resetNewSession,
@@ -217,6 +222,66 @@ describe("loadBag", () => {
     expect(await loadBag(empty)).toEqual({});
     const list = { get: async () => ({ [SESSIONS_KEY]: [] }), set: async () => undefined };
     expect(await loadBag(list)).toEqual({});
+  });
+});
+
+describe("toolLine", () => {
+  it("uses the first eval line or the result error", () => {
+    expect(toolLine("eval_js", "document.title\nmore", { ok: true })).toBe("document.title");
+    expect(toolLine("eval_js", { code: "  foo()  " }, { ok: true })).toBe("foo()");
+    expect(toolLine("eval_js", "ok()", { ok: false, error: "Refused" })).toBe("Refused");
+  });
+
+  it("counts network and resource rows", () => {
+    expect(toolLine("network", { url: "/api" }, [{}, {}])).toBe("2 requests · /api");
+    expect(toolLine("resources", { type: "script" }, { result: [{}] })).toBe("1 resource · script");
+  });
+});
+
+describe("stepsSummary and toolCardLine", () => {
+  it("names repeated or distinct tools", () => {
+    expect(stepsSummary([{ name: "eval_js", summary: "" }])).toBe("1 step · eval_js");
+    expect(
+      stepsSummary([
+        { name: "eval_js", summary: "" },
+        { name: "network", summary: "" },
+        { name: "resources", summary: "" },
+      ]),
+    ).toBe("3 steps · eval_js, network, resources");
+    expect(
+      stepsSummary([
+        { name: "eval_js", summary: "" },
+        { name: "eval_js", summary: "" },
+      ]),
+    ).toBe("2 steps · eval_js");
+  });
+
+  it("falls back when line is missing", () => {
+    expect(toolCardLine({ name: "eval_js", summary: '{"input":"foo()\\nbar"}' })).toBe("foo()");
+    expect(toolCardLine({ name: "eval_js", summary: '{"input":' })).toBe("");
+    expect(toolCardLine({ name: "eval_js", line: "document.title", summary: "{}" })).toBe(
+      "document.title",
+    );
+  });
+});
+
+describe("prettyToolSummary", () => {
+  it("pretty-prints JSON and turns escaped newlines into breaks", () => {
+    expect(prettyToolSummary('{"a":1}', "nope")).toBe('{\n  "a": 1\n}');
+    expect(prettyToolSummary('{"input":"foo\\nbar"}', "x")).toBe('{\n  "input": "foo\nbar"\n}');
+    expect(prettyToolSummary("not json\\nline", "x")).toBe("not json\nline");
+    expect(prettyToolSummary("document.title", "document.title")).toBe("");
+    expect(prettyToolSummary('{"truncated":true,"preview":"foo\\nbar"}', "x")).toBe("foo\nbar");
+  });
+});
+
+describe("toolSummary", () => {
+  it("keeps compact JSON without slicing a valid dump", () => {
+    const summary = toolSummary({ code: "foo()\nbar()" }, { ok: true });
+    expect(JSON.parse(summary)).toEqual({
+      input: { code: "foo()\nbar()" },
+      result: { ok: true },
+    });
   });
 });
 

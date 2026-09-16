@@ -1,8 +1,14 @@
 # Changelog
 
-All notable changes to this project are documented here. Product versions follow `package.json` (currently 0.5.0). Studio `VERSION` 0.0.x tags are not store releases.
+All notable changes to this project are documented here. Product versions follow `package.json` (currently 0.6.0). Studio `VERSION` 0.0.x tags are not store releases.
 
 ## [Unreleased]
+
+## [0.6.0] - 2026-09-16
+
+### Added
+
+- Assistant answers have a Copy control after the markdown (source text). Tool steps fold behind a one-line summary. Each step shows a short line when one can be derived; dumps inside the fold keep real line breaks instead of escaped `\\n`.
 
 ## [0.5.0] - 2026-09-16
 

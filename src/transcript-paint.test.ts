@@ -15,6 +15,9 @@ describe("turnSig", () => {
     const b = [user("hi"), assistant("yo", { tools: [{ name: "eval_js", summary: "1" }] })];
     expect(turnSig(a)).not.toBe(turnSig(b));
     expect(turnSig(a)).toBe(turnSig([user("hi"), assistant("yo")]));
+    const lined = [user("hi"), assistant("yo", { tools: [{ name: "eval_js", line: "a", summary: "1" }] })];
+    const relined = [user("hi"), assistant("yo", { tools: [{ name: "eval_js", line: "b", summary: "1" }] })];
+    expect(turnSig(lined)).not.toBe(turnSig(relined));
   });
 });
 

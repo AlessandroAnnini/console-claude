@@ -21,8 +21,8 @@ import {
 import { DEVTOOLS_PORT, type AskVia, type ConfirmReply } from "./protocol";
 import {
   activeSession,
-  compactValue,
-  COMPACT_PREVIEW,
+  toolLine,
+  toolSummary,
   ensureOrigin,
   loadBag,
   persistOrigin,
@@ -408,12 +408,11 @@ async function handle(msg: {
 }
 
 function noteTool(name: string, input: unknown, result: unknown) {
-  const compact = compactValue({ input, result });
-  const summary =
-    typeof compact === "object" && compact && "preview" in compact
-      ? String((compact as { preview: string }).preview)
-      : (JSON.stringify(compact) ?? "");
-  turnTools.push({ name, summary: summary.slice(0, COMPACT_PREVIEW) });
+  turnTools.push({
+    name,
+    line: toolLine(name, input, result),
+    summary: toolSummary(input, result),
+  });
 }
 
 function inspectedOrigin(): Promise<string> {

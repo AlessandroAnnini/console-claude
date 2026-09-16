@@ -112,7 +112,7 @@ Five Vite passes. Always `npm run build`.
 | `src/panel.ts` | Console Claude panel view + composer |
 | `src/markdown.ts` | GFM parse + DOMPurify for assistant turns |
 | `src/sandbox.ts` | Bundled mermaid.render (MV3 sandbox page) |
-| `src/panel-copy.ts` | Session delete mark (`×`) |
+| `src/panel-copy.ts` | Session delete mark (`×`) and shared Copy-button helper |
 | `src/agent.ts` | Step loop (no Chrome APIs) |
 | `src/observe.ts` | Pure HAR / resource summaries |
 | `src/anthropic.ts` | `POST /v1/messages` |

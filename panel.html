@@ -260,6 +260,26 @@
         color: var(--muted);
         margin: 0 0 0.2rem;
       }
+      .turn .answer-copy {
+        position: relative;
+        margin: 0.4rem 0 0;
+      }
+      .chip {
+        padding: 0.12rem 0.4rem;
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        background: var(--paper);
+        color: var(--ink);
+        border: 1px solid var(--hair);
+      }
+      .copy-live {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
       .turn.user p {
         margin: 0;
         white-space: pre-wrap;
@@ -291,27 +311,11 @@
         border: 0;
         padding: 1.75rem 0.55rem 0.45rem 0;
       }
-      .md .chip {
-        padding: 0.12rem 0.4rem;
-        font-size: 0.62rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        background: var(--paper);
-        color: var(--ink);
-        border: 1px solid var(--hair);
-      }
       .md .code-block .copy {
         position: absolute;
         top: 0.3rem;
         right: 0.3rem;
         z-index: 1;
-      }
-      .md .copy-live {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
       }
       .md .code-block .line {
         display: block;
@@ -421,6 +425,30 @@
         color: var(--muted);
         margin: 0.25rem 0 0;
       }
+      .steps {
+        margin: 0.4rem 0 0;
+        padding-top: 0.35rem;
+        border-top: 1px solid var(--hair);
+      }
+      .steps summary {
+        display: block;
+        cursor: pointer;
+        font-size: 0.65rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        list-style: none;
+      }
+      .steps summary::-webkit-details-marker {
+        display: none;
+      }
+      .steps summary::before {
+        content: "+";
+        margin-right: 0.4rem;
+      }
+      .steps[open] summary::before {
+        content: "○";
+      }
       .tool {
         margin: 0.4rem 0 0;
         padding: 0.4rem 0.5rem;
@@ -433,8 +461,14 @@
         text-transform: uppercase;
         color: var(--muted);
       }
-      .tool pre {
+      .tool .line {
+        display: block;
         margin: 0.25rem 0 0;
+        overflow-wrap: anywhere;
+        font: 0.78rem/1.4 ui-monospace, "IBM Plex Mono", monospace;
+      }
+      .tool pre {
+        margin: 0.35rem 0 0;
         white-space: pre-wrap;
         font: 0.78rem/1.4 ui-monospace, "IBM Plex Mono", monospace;
       }
@@ -472,6 +506,12 @@
       button.secondary,
       #send.stop {
         background: transparent;
+        color: var(--ink);
+        border-color: var(--hair);
+      }
+      button.chip {
+        padding: 0.12rem 0.4rem;
+        background: var(--paper);
         color: var(--ink);
         border-color: var(--hair);
       }

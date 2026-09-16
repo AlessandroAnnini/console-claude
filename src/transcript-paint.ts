@@ -4,7 +4,9 @@ import type { Turn } from "./sessions";
 export function turnSig(turns: readonly Turn[]): string {
   return turns
     .map((turn) => {
-      const tools = (turn.tools ?? []).map((card) => `${card.name}\t${card.summary}`).join("\n");
+      const tools = (turn.tools ?? [])
+        .map((card) => `${card.name}\t${card.line ?? ""}\t${card.summary}`)
+        .join("\n");
       return `${turn.role}\0${turn.text}\0${turn.status ?? ""}\0${tools}`;
     })
     .join("\n\n");

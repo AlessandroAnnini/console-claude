@@ -11,6 +11,7 @@ import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import createDOMPurify from "dompurify";
+import { bindCopyButton } from "./panel-copy";
 
 hljs.registerLanguage("bash", bash);
 hljs.registerLanguage("css", css);
@@ -114,21 +115,7 @@ export function enhanceCodeBlock(pre: HTMLElement, source: string, language = ""
   const live = document.createElement("span");
   live.className = "copy-live";
   live.setAttribute("aria-live", "polite");
-  copy.addEventListener("click", () => {
-    void navigator.clipboard.writeText(source).then(
-      () => {
-        copy.textContent = "Copied";
-        live.textContent = "Copied";
-        window.setTimeout(() => {
-          copy.textContent = "Copy";
-          live.textContent = "";
-        }, 1600);
-      },
-      () => {
-        live.textContent = "Copy failed";
-      },
-    );
-  });
+  bindCopyButton(copy, live, () => source);
   pre.setAttribute("tabindex", "0");
   pre.replaceWith(wrap);
   wrap.append(copy, live, pre);

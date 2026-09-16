@@ -8,7 +8,7 @@ import {
   type DrawerState,
 } from "./drawer";
 import { renderMarkdownFragment, sanitizeMermaidSvg, type MermaidBlock } from "./markdown";
-import { SESSION_DELETE_MARK } from "./panel-copy";
+import { bindCopyButton, SESSION_DELETE_MARK } from "./panel-copy";
 import { PANEL_PORT, type ConfirmRequest } from "./protocol";
 import type { MermaidAsk, MermaidReply } from "./sandbox";
 import {
@@ -17,7 +17,10 @@ import {
   ensureOrigin,
   loadBag,
   persistOrigin,
+  prettyToolSummary,
   renameSession,
+  stepsSummary,
+  toolCardLine,
   resetNewSession,
   saveBag,
   selectSession,
@@ -25,6 +28,7 @@ import {
   SESSIONS_KEY,
   type OriginBucket,
   type Session,
+  type ToolCard,
   type Turn,
 } from "./sessions";
 import { chromeArea } from "./storage";
@@ -58,6 +62,7 @@ let confirmId = "";
 let seq = 0;
 let paint = 0;
 let painted = { sessionId: "", sig: "", running: false, turns: [] as Turn[] };
+const stepsOpen = new Set<string>();
 let renamingId: string | null = null;
 let finishRename: ((save: boolean) => void) | null = null;
 let drawer: DrawerState = { open: true, width: DRAWER_DEFAULT };
@@ -225,17 +230,17 @@ function syncThinking(running: boolean, groups: Turn[][]) {
   turnsEl.append(wait);
 }
 
-function paintTranscript(turns: Turn[], running: boolean, mode: "full" | "last") {
+function paintTranscript(turns: Turn[], running: boolean, mode: "full" | "last", sessionId: string) {
   const groups = groupExchanges(turns);
   paint += 1;
   const gen = paint;
   if (mode === "full") {
-    const nodes = groups.map((group) => exchangeNode(group, gen));
+    const nodes = groups.map((group) => exchangeNode(group, gen, sessionId, turns));
     turnsEl.replaceChildren(...nodes);
   } else {
     const last = groups.at(-1);
     if (!last) return;
-    const next = exchangeNode(last, gen);
+    const next = exchangeNode(last, gen, sessionId, turns);
     const rows = Array.from(turnsEl.querySelectorAll(":scope > .exchange:not([data-thinking])"));
     if (rows.length === groups.length) {
       rows.at(-1)?.replaceWith(next);
@@ -244,7 +249,7 @@ function paintTranscript(turns: Turn[], running: boolean, mode: "full" | "last")
       if (tail) tail.after(next);
       else turnsEl.append(next);
     } else {
-      turnsEl.replaceChildren(...groups.map((group) => exchangeNode(group, gen)));
+      turnsEl.replaceChildren(...groups.map((group) => exchangeNode(group, gen, sessionId, turns)));
     }
   }
   syncThinking(running, groups);
@@ -279,6 +284,7 @@ function render() {
     return;
   }
   const sessionChanged = sessionId !== painted.sessionId;
+  if (sessionChanged) stepsOpen.clear();
   const sameTurns = !sessionChanged && sig === painted.sig;
   if (sameTurns) {
     if (running !== painted.running) syncThinking(running, groupExchanges(turns));
@@ -287,27 +293,29 @@ function render() {
   }
   const stick = nearBottom();
   if (sessionChanged || !canPatchLastExchange(painted.turns, turns) || !turnsEl.querySelector(".exchange")) {
-    paintTranscript(turns, running, "full");
+    paintTranscript(turns, running, "full", sessionId);
   } else {
-    paintTranscript(turns, running, "last");
+    paintTranscript(turns, running, "last", sessionId);
   }
   if (stick) turnsEl.scrollTop = turnsEl.scrollHeight;
   painted = { sessionId, sig, running, turns };
 }
 
-function exchangeNode(turns: Turn[], gen: number): HTMLElement {
+function exchangeNode(turns: Turn[], gen: number, sessionId: string, all: Turn[]): HTMLElement {
   const wrap = document.createElement("section");
   wrap.className = "exchange";
-  wrap.append(...turns.map((turn) => turnNode(turn, gen)));
+  wrap.append(...turns.map((turn) => turnNode(turn, gen, `${sessionId}:${all.indexOf(turn)}`)));
   return wrap;
 }
 
-function turnNode(turn: Turn, gen: number) {
+function turnNode(turn: Turn, gen: number, stepsKey: string) {
   const wrap = document.createElement("article");
   wrap.className = turn.role === "user" ? "turn user" : "turn";
-  const who = document.createElement("p");
+  const who = document.createElement("div");
   who.className = "who";
-  who.textContent = turn.role === "user" ? "You" : "Claude";
+  const label = document.createElement("span");
+  label.textContent = turn.role === "user" ? "You" : "Claude";
+  who.append(label);
   wrap.append(who);
   if (turn.role === "user") {
     const body = document.createElement("p");
@@ -315,17 +323,35 @@ function turnNode(turn: Turn, gen: number) {
     wrap.append(body);
   } else {
     wrap.append(assistantBody(turn.text, gen));
+    if (turn.text.trim()) {
+      const copyRow = document.createElement("div");
+      copyRow.className = "answer-copy";
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "chip copy";
+      copy.setAttribute("aria-label", "Copy answer");
+      copy.textContent = "Copy";
+      const live = document.createElement("span");
+      live.className = "copy-live";
+      live.setAttribute("aria-live", "polite");
+      bindCopyButton(copy, live, () => turn.text);
+      copyRow.append(copy, live);
+      wrap.append(copyRow);
+    }
   }
-  for (const tool of turn.tools ?? []) {
-    const card = document.createElement("div");
-    card.className = "tool";
-    const name = document.createElement("div");
-    name.className = "name";
-    name.textContent = tool.name;
-    const pre = document.createElement("pre");
-    pre.textContent = tool.summary;
-    card.append(name, pre);
-    wrap.append(card);
+  const tools = turn.tools ?? [];
+  if (tools.length) {
+    const fold = document.createElement("details");
+    fold.className = "steps";
+    fold.open = stepsOpen.has(stepsKey);
+    fold.addEventListener("toggle", () => {
+      if (fold.open) stepsOpen.add(stepsKey);
+      else stepsOpen.delete(stepsKey);
+    });
+    const summary = document.createElement("summary");
+    summary.textContent = stepsSummary(tools);
+    fold.append(summary, ...tools.map(toolNode));
+    wrap.append(fold);
   }
   if (turn.status && turn.status !== "ok") {
     const status = document.createElement("p");
@@ -334,6 +360,31 @@ function turnNode(turn: Turn, gen: number) {
     wrap.append(status);
   }
   return wrap;
+}
+
+function toolNode(tool: ToolCard): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "tool";
+  const name = document.createElement("div");
+  name.className = "name";
+  name.textContent = tool.name;
+  const line = toolCardLine(tool);
+  card.append(name);
+  if (line) {
+    const code = document.createElement("code");
+    code.className = "line";
+    code.textContent = line;
+    card.append(code);
+  }
+  const pretty = prettyToolSummary(tool.summary, line);
+  if (pretty) {
+    const pre = document.createElement("pre");
+    const dump = document.createElement("code");
+    dump.textContent = pretty;
+    pre.append(dump);
+    card.append(pre);
+  }
+  return card;
 }
 
 function assistantBody(text: string, gen: number): HTMLElement {

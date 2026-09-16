@@ -6,12 +6,14 @@ export const SESSION_CAP = 20;
 export const COMPACT_MAX = 2000;
 export const COMPACT_PREVIEW = 400;
 export const TITLE_MAX = 48;
+export const TOOL_LINE_MAX = 80;
 export const UNTITLED = "Untitled";
 
 export type TurnStatus = "ok" | "stopped" | "error";
 
 export type ToolCard = {
   name: string;
+  line?: string;
   summary: string;
 };
 
@@ -178,6 +180,132 @@ export function deleteSession(bucket: OriginBucket, id: string, now?: number): O
 
 export function resetNewSession(bucket: OriginBucket, now?: number): OriginBucket {
   return addSession(bucket, createSession({ now }));
+}
+
+function capLine(text: string): string {
+  const trimmed = text.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= TOOL_LINE_MAX) return trimmed;
+  return `${trimmed.slice(0, TOOL_LINE_MAX - 1)}…`;
+}
+
+function resultError(result: unknown): string {
+  if (!result || typeof result !== "object") return "";
+  const error = (result as { error?: unknown }).error;
+  return typeof error === "string" ? error.trim() : "";
+}
+
+function resultRows(result: unknown): unknown[] | null {
+  if (Array.isArray(result)) return result;
+  if (result && typeof result === "object" && "result" in result) {
+    const inner = (result as { result?: unknown }).result;
+    if (Array.isArray(inner)) return inner;
+  }
+  return null;
+}
+
+function filterHint(input: unknown): string {
+  if (!input || typeof input !== "object") return "";
+  const rec = input as Record<string, unknown>;
+  if (typeof rec.url === "string" && rec.url.trim()) return rec.url.trim();
+  if (typeof rec.type === "string" && rec.type.trim()) return rec.type.trim();
+  return "";
+}
+
+export function toolLine(name: string, input: unknown, result: unknown): string {
+  const error = resultError(result);
+  if (name === "eval_js") {
+    if (error) return capLine(error);
+    const code =
+      typeof input === "string"
+        ? input
+        : input && typeof input === "object" && typeof (input as { code?: unknown }).code === "string"
+          ? (input as { code: string }).code
+          : "";
+    const first = code.trim().split(/\r?\n/, 1)[0] ?? "";
+    return first ? capLine(first) : name;
+  }
+  if (name === "network" || name === "resources") {
+    const count = resultRows(result)?.length ?? 0;
+    const noun =
+      name === "network"
+        ? count === 1
+          ? "request"
+          : "requests"
+        : count === 1
+          ? "resource"
+          : "resources";
+    const hint = filterHint(input);
+    return hint ? capLine(`${count} ${noun} · ${hint}`) : `${count} ${noun}`;
+  }
+  if (error) return capLine(error);
+  return name;
+}
+
+export function toolCardLine(card: ToolCard): string {
+  const line = card.line?.trim();
+  if (line) return line;
+  return lineFromSummary(card.name, card.summary ?? "");
+}
+
+function lineFromSummary(name: string, summary: string): string {
+  const raw = summary.trim();
+  if (!raw) return "";
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed !== null && "input" in parsed) {
+      const rec = parsed as { input: unknown; result?: unknown };
+      return toolLine(name, rec.input, rec.result);
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+export function stepsSummary(tools: readonly ToolCard[]): string {
+  const count = tools.length;
+  const steps = count === 1 ? "1 step" : `${count} steps`;
+  const unique = [...new Set(tools.map((item) => item.name))];
+  if (unique.length === 1) return `${steps} · ${unique[0]}`;
+  if (unique.length > 0 && unique.length <= 3) return `${steps} · ${unique.join(", ")}`;
+  return steps;
+}
+
+function unescapeToolText(text: string): string {
+  return text.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+}
+
+function truncatedPreview(value: unknown): string {
+  if (
+    value &&
+    typeof value === "object" &&
+    (value as { truncated?: unknown }).truncated === true &&
+    typeof (value as { preview?: unknown }).preview === "string"
+  ) {
+    return (value as { preview: string }).preview;
+  }
+  return "";
+}
+
+export function prettyToolSummary(summary: string, line: string): string {
+  const raw = summary.trim();
+  if (!raw) return "";
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const preview = truncatedPreview(parsed);
+    const readable = preview
+      ? unescapeToolText(preview)
+      : unescapeToolText(JSON.stringify(parsed, null, 2));
+    return readable && readable !== line ? readable : "";
+  } catch {
+    const readable = unescapeToolText(raw);
+    return readable && readable !== line ? readable : "";
+  }
+}
+
+export function toolSummary(input: unknown, result: unknown): string {
+  return JSON.stringify(compactValue({ input, result })) ?? "";
 }
 
 export function compactValue(value: unknown): unknown {
