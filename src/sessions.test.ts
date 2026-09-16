@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   addSession,
+  clearBag,
   compactValue,
   COMPACT_MAX,
   createSession,
   deleteSession,
   emptyBucket,
+  listOrigins,
+  loadBag,
   originFromUrl,
+  persistOrigin,
+  removeOrigin,
+  SESSIONS_KEY,
   renameSession,
   resetNewSession,
   sanitizeTitle,
@@ -16,6 +22,8 @@ import {
   shouldForkOnAsk,
   shouldNameSession,
   titleFromGoal,
+  type OriginBucket,
+  type Session,
 } from "./sessions";
 
 describe("AC1-origin-key", () => {
@@ -127,6 +135,88 @@ describe("AC6-delete-selects-next", () => {
     expect(bucket.sessions).toHaveLength(1);
     expect(bucket.activeId).not.toBe("b");
     expect(bucket.sessions[0]?.messages).toEqual([]);
+  });
+});
+
+function withTurns(session: Session, updatedAt: number): Session {
+  return {
+    ...session,
+    updatedAt,
+    turns: [{ role: "user", text: "goal" }],
+  };
+}
+
+function bucketOf(...sessions: Session[]): OriginBucket {
+  const first = sessions[0];
+  if (!first) return emptyBucket(createSession({ id: "empty", now: 1 }), 1);
+  return { activeId: first.id, sessions };
+}
+
+describe("listOrigins", () => {
+  it("hides empty Untitled shells and sorts by recency", () => {
+    const empty = emptyBucket(createSession({ id: "shell", now: 1 }), 1);
+    const older = bucketOf(
+      withTurns(createSession({ id: "a", now: 2 }), 20),
+      createSession({ id: "spare", now: 3 }),
+    );
+    const newer = bucketOf(withTurns(createSession({ id: "b", now: 4 }), 40));
+    const listed = listOrigins({
+      "https://empty.example": empty,
+      "https://older.example": older,
+      "https://newer.example": newer,
+    });
+    expect(listed.map((item) => item.origin)).toEqual([
+      "https://newer.example",
+      "https://older.example",
+    ]);
+    expect(listed[1]?.sessionCount).toBe(1);
+  });
+
+  it("skips malformed buckets", () => {
+    const listed = listOrigins({
+      "https://bad.example": null as unknown as OriginBucket,
+      "https://ok.example": bucketOf(withTurns(createSession({ id: "ok", now: 1 }), 5)),
+    });
+    expect(listed.map((item) => item.origin)).toEqual(["https://ok.example"]);
+  });
+});
+
+describe("removeOrigin and clearBag", () => {
+  it("drops one origin and leaves the rest", () => {
+    const keep = bucketOf(withTurns(createSession({ id: "k", now: 1 }), 1));
+    const drop = bucketOf(withTurns(createSession({ id: "d", now: 2 }), 2));
+    const bag = removeOrigin(
+      { "https://keep.example": keep, "https://drop.example": drop },
+      "https://drop.example",
+    );
+    expect(bag["https://keep.example"]).toBe(keep);
+    expect(bag["https://drop.example"]).toBeUndefined();
+    expect(clearBag()).toEqual({});
+  });
+});
+
+describe("persistOrigin", () => {
+  it("refuses a missing origin unless create is set", () => {
+    const next = emptyBucket(createSession({ id: "n", now: 1 }), 1);
+    const refused = persistOrigin({}, "https://gone.example", next, false);
+    expect(refused.persisted).toBe(false);
+    expect(refused.bag).toEqual({});
+    const created = persistOrigin({}, "https://gone.example", next, true);
+    expect(created.persisted).toBe(true);
+    expect(created.bag["https://gone.example"]).toBe(next);
+    const present = persistOrigin({ "https://gone.example": next }, "https://gone.example", next, false);
+    expect(present.persisted).toBe(true);
+    const inherited = Object.create({ "https://gone.example": next }) as Record<string, OriginBucket>;
+    expect(persistOrigin(inherited, "https://gone.example", next, false).persisted).toBe(false);
+  });
+});
+
+describe("loadBag", () => {
+  it("rejects arrays and missing values", async () => {
+    const empty = { get: async () => ({}), set: async () => undefined };
+    expect(await loadBag(empty)).toEqual({});
+    const list = { get: async () => ({ [SESSIONS_KEY]: [] }), set: async () => undefined };
+    expect(await loadBag(list)).toEqual({});
   });
 });
 

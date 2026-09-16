@@ -40,6 +40,12 @@ export type OriginBucket = {
 
 export type SessionsBag = Record<string, OriginBucket>;
 
+export type OriginSummary = {
+  origin: string;
+  sessionCount: number;
+  updatedAt: number;
+};
+
 export function originFromUrl(url: string): string {
   try {
     return new URL(url).origin;
@@ -200,10 +206,53 @@ export function putBucket(bag: SessionsBag, origin: string, bucket: OriginBucket
   return { ...bag, [origin]: bucket };
 }
 
+export function sessionHasHistory(session: Session): boolean {
+  return Array.isArray(session?.turns) && session.turns.length > 0;
+}
+
+export function originHasHistory(bucket: OriginBucket): boolean {
+  return Boolean(bucket?.sessions?.some((item) => item && sessionHasHistory(item)));
+}
+
+export function listOrigins(bag: SessionsBag): OriginSummary[] {
+  return Object.entries(bag)
+    .filter(([, bucket]) => originHasHistory(bucket))
+    .map(([origin, bucket]) => {
+      const history = bucket.sessions.filter((item) => item && sessionHasHistory(item));
+      return {
+        origin,
+        sessionCount: history.length,
+        updatedAt: Math.max(...history.map((item) => item.updatedAt)),
+      };
+    })
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function removeOrigin(bag: SessionsBag, origin: string): SessionsBag {
+  if (!Object.hasOwn(bag, origin)) return bag;
+  const next = { ...bag };
+  delete next[origin];
+  return next;
+}
+
+export function clearBag(): SessionsBag {
+  return {};
+}
+
+export function persistOrigin(
+  bag: SessionsBag,
+  origin: string,
+  next: OriginBucket,
+  create = false,
+): { bag: SessionsBag; persisted: boolean } {
+  if (!create && !Object.hasOwn(bag, origin)) return { bag, persisted: false };
+  return { bag: putBucket(bag, origin, next), persisted: true };
+}
+
 export async function loadBag(area: SettingsArea): Promise<SessionsBag> {
   const got = await area.get(SESSIONS_KEY);
   const raw = got[SESSIONS_KEY];
-  if (!raw || typeof raw !== "object") return {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return raw as SessionsBag;
 }
 

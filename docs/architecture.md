@@ -108,7 +108,7 @@ Five Vite passes. Always `npm run build`.
 | `src/content-isolated.ts` | Isolated bridge + confirm sync |
 | `src/background.ts` | Ports, config, toolbar → Options |
 | `src/devtools.ts` | Agent loop, Anthropic, confirm, eval, network, resources, session persist |
-| `src/sessions.ts` | Origin-keyed session store |
+| `src/sessions.ts` | Origin-keyed session store. Options can drop origin keys from `consoleClaude.sessions` without touching the API key. |
 | `src/panel.ts` | Console Claude panel view + composer |
 | `src/markdown.ts` | GFM parse + DOMPurify for assistant turns |
 | `src/sandbox.ts` | Bundled mermaid.render (MV3 sandbox page) |
@@ -120,6 +120,7 @@ Five Vite passes. Always `npm run build`.
 | `src/serialize.ts` | Bounded JSON |
 | `src/protocol.ts` | Message types |
 | `src/settings.ts` | Models and defaults |
+| `src/options.ts` | Options key, model, confirm, and session wipes |
 | `public/manifest.json` | MV3 |
 
 ## Invariants

@@ -1,8 +1,14 @@
 # Changelog
 
-All notable changes to this project are documented here. Product versions follow `package.json` (currently 0.4.0). Studio `VERSION` 0.0.x tags are not store releases.
+All notable changes to this project are documented here. Product versions follow `package.json` (currently 0.5.0). Studio `VERSION` 0.0.x tags are not store releases.
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-09-16
+
+### Added
+
+- Options lists sites that have stored sessions. Delete one origin or all sessions. The API key stays.
 
 ## [0.4.0] - 2026-09-10
 

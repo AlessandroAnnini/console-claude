@@ -130,14 +130,58 @@
         color: var(--muted);
         margin: 0.85rem 0 0;
       }
-      .howto {
+      .sessions {
         margin-top: 1.75rem;
       }
+      .sessions h2,
       .howto h2 {
         font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
         font-weight: 500;
         font-size: 1.15rem;
         margin: 0 0 0.5rem;
+      }
+      .sessions .lede {
+        margin-bottom: 0.75rem;
+      }
+      #origins {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        border-top: 1px solid var(--hair);
+      }
+      #origins:empty {
+        display: none;
+      }
+      .origin-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.65rem 0;
+        border-bottom: 1px solid var(--hair);
+      }
+      .origin-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        min-width: 0;
+      }
+      .origin-row code {
+        word-break: break-all;
+      }
+      .origin-row .count {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      #clearAll {
+        margin-top: 0.85rem;
+      }
+      #originsEmpty[hidden],
+      #clearAll[hidden] {
+        display: none;
+      }
+      .howto {
+        margin-top: 1.75rem;
       }
       .howto ol {
         margin: 0;
@@ -204,6 +248,13 @@
       <button type="submit">Save</button>
     </form>
     <p id="status"></p>
+    <section class="sessions">
+      <h2>Sessions</h2>
+      <p class="lede">Conversations stay in this browser until you delete them.</p>
+      <p id="originsEmpty" class="hint">No stored sessions.</p>
+      <ul id="origins"></ul>
+      <button type="button" class="secondary" id="clearAll" hidden>Delete all sessions</button>
+    </section>
     <section class="howto">
       <h2>In the console</h2>
       <ol>

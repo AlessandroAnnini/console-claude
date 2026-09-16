@@ -25,7 +25,7 @@ import {
   COMPACT_PREVIEW,
   ensureOrigin,
   loadBag,
-  putBucket,
+  persistOrigin,
   renameSession,
   resetNewSession,
   saveBag,
@@ -119,7 +119,12 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   const change = changes[SESSIONS_KEY];
   if (!change) return;
   const next = (change.newValue as SessionsBag | undefined)?.[origin];
-  if (!next) return;
+  if (!next) {
+    abort?.abort();
+    bucket = null;
+    if (!abort) messages = [];
+    return;
+  }
   bucket = next;
   if (!abort) messages = activeSession(next)?.messages ?? [];
 });
@@ -436,13 +441,19 @@ async function syncOrigin(): Promise<void> {
 async function ensureActiveBucket(): Promise<void> {
   await syncOrigin();
   if (bucket || !origin) return;
-  await writeBucket(ensureOrigin({}, origin).bucket);
+  await writeBucket(ensureOrigin({}, origin).bucket, true);
 }
 
-async function writeBucket(next: OriginBucket): Promise<void> {
-  bucket = next;
+async function writeBucket(next: OriginBucket, create = false): Promise<void> {
   if (!origin) return;
-  await saveBag(putBucket(await loadBag(chromeArea()), origin, next), chromeArea());
+  const result = persistOrigin(await loadBag(chromeArea()), origin, next, create);
+  if (!result.persisted) {
+    abort?.abort();
+    bucket = null;
+    return;
+  }
+  bucket = next;
+  await saveBag(result.bag, chromeArea());
 }
 
 async function onDocumentChanged(): Promise<void> {

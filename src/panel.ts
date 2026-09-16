@@ -16,7 +16,7 @@ import {
   deleteSession,
   ensureOrigin,
   loadBag,
-  putBucket,
+  persistOrigin,
   renameSession,
   resetNewSession,
   saveBag,
@@ -126,10 +126,16 @@ async function refresh() {
   render();
 }
 
-async function write(next: OriginBucket) {
-  bucket = next;
+async function write(next: OriginBucket, create = false) {
   if (!origin) return;
-  await saveBag(putBucket(await loadBag(chromeArea()), origin, next), chromeArea());
+  const result = persistOrigin(await loadBag(chromeArea()), origin, next, create);
+  if (!result.persisted) {
+    bucket = null;
+    render();
+    return;
+  }
+  bucket = next;
+  await saveBag(result.bag, chromeArea());
   render();
 }
 
@@ -560,7 +566,7 @@ function askOrStop() {
   if (!goal || !origin) return;
   void (async () => {
     if (!bucket?.sessions.length) {
-      await write(ensureOrigin({}, origin).bucket);
+      await write(ensureOrigin({}, origin).bucket, true);
     }
     banner = false;
     engineError = "";
@@ -664,7 +670,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[SESSIONS_KEY] || !origin) return;
   const bag = changes[SESSIONS_KEY].newValue as Record<string, OriginBucket> | undefined;
   const next = bag?.[origin];
-  if (!next) return;
+  if (!next) {
+    sending = false;
+    bucket = null;
+    render();
+    return;
+  }
   if (!next.running) sending = false;
   bucket = next;
   render();
